@@ -1,1 +1,13 @@
-/.idea/
+# IntelliJ
+.idea/
+
+# Node
+node_modules/
+*/node_modules/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
