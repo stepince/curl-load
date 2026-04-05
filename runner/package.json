@@ -6,12 +6,16 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "minify": "html-minifier-terser --collapse-whitespace --remove-comments --minify-css true --minify-js true -o public/index.html public/index.html && html-minifier-terser --collapse-whitespace --remove-comments --minify-css true --minify-js true -o public/load-tester.html public/load-tester.html"
   },
   "dependencies": {
     "express": "^4.19.2",
     "pdf-lib": "^1.17.1",
-    "puppeteer": "^21.5.1",
+    "puppeteer": "^24.40.0",
     "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "html-minifier-terser": "^7.2.0"
   }
 }

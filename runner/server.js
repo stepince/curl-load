@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Stephen Ince
+// Licensed under custom license. See LICENSE file.
+// curl-load web UI — vanilla JS, no frameworks
 import express from 'express';
 import { runsRouter } from './src/routes/runs.js';
 
