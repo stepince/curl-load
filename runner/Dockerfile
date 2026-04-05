@@ -5,9 +5,9 @@ WORKDIR /app
 COPY runner/package*.json ./runner/
 RUN cd runner && npm ci
 
-COPY runner/ ./runner/
-COPY web/index.html ./src/index.html
-COPY public/load-tester.html ./src/load-tester.html
+COPY runner ./runner
+COPY web ./web
+COPY public ./public
 
 RUN mkdir -p /app/build/public \
  && npx --prefix /app/runner html-minifier-terser \
@@ -16,14 +16,23 @@ RUN mkdir -p /app/build/public \
     --minify-css true \
     --minify-js true \
     -o /app/build/public/index.html \
-    /app/src/index.html \
+    /app/web/index.html \
  && npx --prefix /app/runner html-minifier-terser \
     --collapse-whitespace \
     --remove-comments \
     --minify-css true \
     --minify-js true \
     -o /app/build/public/load-tester.html \
-    /app/src/load-tester.html
+    /app/public/load-tester.html \
+ && if [ -f /app/public/documentation.html ]; then \
+      npx --prefix /app/runner html-minifier-terser \
+        --collapse-whitespace \
+        --remove-comments \
+        --minify-css true \
+        --minify-js true \
+        -o /app/build/public/documentation.html \
+        /app/public/documentation.html ; \
+    fi
 
 FROM node:22-alpine
 
@@ -38,8 +47,8 @@ WORKDIR /app/runner
 COPY runner/package*.json ./
 RUN npm ci --omit=dev
 
-COPY runner/ ./
-COPY --from=build /app/build/public ./public
+COPY runner ./
+COPY --from=build /app/build/public /app/public
 
 EXPOSE 3000 5665
 
