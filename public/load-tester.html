@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 2026 Stephen Ince
+  All rights reserved.
+
+  This software is licensed for personal and internal use only.
+  See the LICENSE file in the project root for full terms.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>curl-load workbench</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: system-ui, sans-serif;
+            background: #0f1117;
+            color: #e2e8f0;
+            padding: 2rem;
+        }
+
+        h1 { font-size: 1.5rem; color: #7dd3fc; margin-bottom: 1.5rem; }
+        h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 0.75rem; }
+        h3 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 0.5rem; }
+
+        .card {
+            background: #1e2330;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 0.35rem;
+        }
+
+        textarea, input, select {
+            width: 100%;
+            background: #0f1117;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            color: #e2e8f0;
+            padding: 0.5rem;
+            font-size: 0.9rem;
+            font-family: monospace;
+            margin-bottom: 0.75rem;
+        }
+
+        textarea { resize: vertical; min-height: 80px; }
+        input[type="file"] { background: transparent; border: none; padding: 0; color: #94a3b8; font-size: 0.8rem; }
+
+        button {
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 0.5rem 1.1rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-right: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+
+        pre {
+            background: #0f1117;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-size: 0.78rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #e2e8f0;
+            margin-top: 0.5rem;
+        }
+
+        /* JSON syntax highlight — adapted for dark theme */
+        #results code {
+            display: block;
+            white-space: pre-wrap;
+            background: #0f1117;
+            border: 1px solid #1e293b;
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-size: 0.78rem;
+            font-family: monospace;
+            overflow-x: auto;
+            color: #e2e8f0;
+            margin-top: 0.5rem;
+        }
+        #results .key     { color: #7dd3fc; }
+        #results .string  { color: #86efac; }
+        #results .number  { color: #fbbf24; }
+        #results .boolean { color: #f472b6; }
+        #results .null    { color: #94a3b8; }
+
+        /* Status badges */
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: 600;
+        }
+        .status-created  { background: #1e3a5f; color: #7dd3fc; }
+        .status-running  { background: #14532d; color: #86efac; }
+        .status-finished { background: #1a2e05; color: #a3e635; }
+        .status-failed   { background: #450a0a; color: #fca5a5; }
+        .status-stopped  { background: #1c1917; color: #a8a29e; }
+        .status-stopping { background: #431407; color: #fdba74; }
+
+        /* Layout */
+        .settings-grid {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 0.5rem;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+        .left-column, .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            min-width: 180px;
+        }
+        .left-column > div, .right-column > div {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Variables */
+        #variables {
+            margin-top: 0.5rem;
+            border: 1px solid #334155;
+            padding: 0.75rem;
+            border-radius: 6px;
+            background: #0f1117;
+        }
+        .variable-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+            flex-wrap: wrap;
+        }
+        .variable-row input, .variable-row select, .variable-row textarea {
+            margin-bottom: 0;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.82rem;
+        }
+        .variable-row input { flex: 1; }
+
+        /* Headers */
+        #headersContainer {
+            margin-top: 0.5rem;
+            border: 1px solid #334155;
+            padding: 0.75rem;
+            border-radius: 6px;
+            background: #0f1117;
+            min-height: 2rem;
+        }
+        .header-row {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+        .header-row input {
+            margin-bottom: 0;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.82rem;
+        }
+        .header-name  { flex: 1; }
+        .header-value { flex: 2; }
+
+        #authRow {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.6rem;
+        }
+        #authRow > label { margin: 0; white-space: nowrap; }
+        #authRow select  { width: auto; margin: 0; }
+        #authToken, #authUsername, #authPassword {
+            margin: 0; flex: 1; min-width: 120px; display: none;
+        }
+
+        /* Remote form */
+        #remoteForm {
+            display: none;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 0.75rem 1rem;
+            margin-top: 0.5rem;
+            background: #0f1117;
+        }
+        .remote-form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .remote-form-row label { display: inline-block; width: 3.5rem; margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
+        .remote-form-row input { width: auto; margin-bottom: 0; flex: 0 0 auto; }
+
+        /* Report */
+        #report p { font-size: 0.85rem; margin-bottom: 0.3rem; color: #cbd5e1; }
+        #report strong { color: #e2e8f0; }
+        #report a { color: #7dd3fc; }
+
+        /* Section dividers */
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #475569;
+            margin: 1.25rem 0 0.5rem;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="jsonpath-plus.min.js"></script>
+</head>
+<body>
+<h1>curl-load workbench <a href="documentation.html" target="_blank" title="Documentation"
+     style="display:inline-flex; align-items:center; margin-left:0.6rem; color:#64748b; vertical-align:middle; text-decoration:none;"
+     onmouseover="this.style.color='#7dd3fc'" onmouseout="this.style.color='#64748b'"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></a></h1>
+
+<!-- Profile bar -->
+<div class="card" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.85rem 1.25rem;">
+    <label for="scenarioSelect" style="margin:0; white-space:nowrap;">Project:</label>
+    <select id="scenarioSelect" onchange="loadProfile()" style="width:auto; margin:0; flex:1; min-width:140px;">
+        <option value="">-- select --</option>
+    </select>
+    <label for="projectName" style="margin:0; white-space:nowrap;">Name:</label>
+    <input id="projectName" type="text" placeholder="e.g. my-project" style="width:auto; margin:0; flex:1; min-width:140px;" />
+    <div style="display:flex; gap:0.4rem; margin:0; flex-wrap:wrap;">
+        <button onclick="addProfile()">Add</button>
+        <button onclick="saveProfile()">Save</button>
+        <button onclick="cloneProfile()">Clone</button>
+        <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export ▼</button>
+        <button onclick="document.getElementById('importFileInput').click()" style="background:#475569;">Import</button>
+        <button onclick="deleteProfile()" style="background:#ef4444;">Delete</button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importProjectsFromFile(this.files[0])" />
+    </div>
+</div>
+
+<!-- Export panel -->
+<div id="exportPanel" class="card" style="display:none; padding:0.85rem 1.25rem;">
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.65rem;">
+        <button id="exportSelectAllBtn" onclick="toggleExportSelectAll()" style="margin:0; background:#475569;">Select All</button>
+        <button onclick="exportSelectedProjects()" style="margin:0; margin-left:auto;">Export Selected</button>
+    </div>
+    <div id="exportProjectList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:200px; overflow-y:auto;"></div>
+</div>
+
+<!-- curl input -->
+<div class="card">
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.35rem;">
+        <label for="curlInput" style="margin:0; flex:1;">curl command</label>
+        <button onclick="copyCurl(this)" title="Copy to clipboard"
+                style="background: url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22 aria-hidden=%22true%22><path fill=%22%23aaa%22 fill-rule=%22evenodd%22 d=%22M4 12h4v1H4zm5-6H4v1h5zm2 3V7l-3 3 3 3v-2h5V9zM6.5 8H4v1h2.5zM4 11h2.5v-1H4zm9 1h1v2c-.02.28-.11.52-.3.7s-.42.28-.7.3H3c-.55 0-1-.45-1-1V3c0-.55.45-1 1-1h3c0-1.11.89-2 2-2s2 .89 2 2h3c.55 0 1 .45 1 1v5h-1V5H3v9h10zM4 4h8c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1s-.45-1-1-1-1 .45-1 1-.45 1-1 1H5c-.55 0-1 .45-1 1%22/></svg>') 50% no-repeat; border:none; width:25px; height:25px; padding:0; cursor:pointer; flex-shrink:0; opacity:0.6; margin:0;"
+                onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">
+        </button>
+    </div>
+    <textarea id="curlInput" rows="6" style="margin:0;"></textarea>
+</div>
+
+<!-- Validation -->
+<div class="card">
+    <label for="responseContentType">Response Content Type</label>
+    <select id="responseContentType" onchange="onResponseTypeChange()" style="width:auto; margin-bottom:0;">
+        <option value="*">* (any)</option>
+        <option value="text">Text</option>
+        <option value="xml">XML</option>
+        <option value="json">JSON</option>
+    </select>
+    <div id="validationWrapper" style="display:none; margin-top:0.75rem;">
+        <label id="validationLabel" for="validationExpression"></label>
+        <input id="validationExpression" type="text" style="margin:0;" />
+    </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+    <div class="settings-grid">
+        <div class="left-column">
+            <div id="timeDurationWrapper">
+                <label for="duration">Duration (s)</label>
+                <input type="number" id="duration" value="300" min="1" style="margin:0;" />
+            </div>
+            <div id="iterationWrapper" style="display:none;">
+                <label for="iterations">Total iterations</label>
+                <input type="number" id="iterations" value="100" min="1" style="margin:0;" />
+            </div>
+            <div>
+                <label for="pause">Pause between requests (s)</label>
+                <input type="number" id="pause" value="1" min="0" style="margin:0;" />
+            </div>
+        </div>
+        <div class="right-column">
+            <div>
+                <label for="durationType">Duration Type</label>
+                <select id="durationType" style="margin:0;">
+                    <option value="time">Time (seconds)</option>
+                    <option value="iteration">Iterations</option>
+                </select>
+            </div>
+            <div>
+                <label for="users">Peak virtual users</label>
+                <input type="number" id="users" value="1" min="1" style="margin:0;" />
+            </div>
+            <div>
+                <label for="ramp">Ramp-up period (s)</label>
+                <input type="number" id="ramp" value="30" min="0" style="margin:0;" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Headers -->
+<div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+        <h3 style="margin:0;">Headers</h3>
+        <div>
+            <button onclick="addHeader()">+ Add</button>
+            <button onclick="autoExtractHeaders()">Auto Extract</button>
+        </div>
+    </div>
+    <div id="authRow">
+        <label style="font-size:0.8rem; color:#94a3b8;">Auth:</label>
+        <select id="authType" onchange="onAuthTypeChange()">
+            <option value="none">None</option>
+            <option value="bearer">Bearer Token</option>
+            <option value="basic">Basic Auth</option>
+        </select>
+        <input id="authToken"    type="text"     placeholder="Token"    oninput="saveFormValues()" />
+        <input id="authUsername" type="text"     placeholder="Username" oninput="saveFormValues()" />
+        <input id="authPassword" type="password" placeholder="Password" oninput="saveFormValues()" />
+    </div>
+    <div id="headersContainer"></div>
+</div>
+
+<!-- Variables -->
+<div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+        <h3 style="margin:0;">Variables</h3>
+        <div>
+            <button onclick="addVariable()">+ Add</button>
+            <button onclick="autoExtractVariables()">Auto Extract</button>
+        </div>
+    </div>
+    <div id="variables"></div>
+</div>
+
+<!-- Actions -->
+<div class="card" style="padding:0.85rem 1.25rem;">
+    <button onclick="runSingleTest()">Run Single</button>
+    <button onclick="runTest()">Run Test</button>
+    <button id="remoteToggleBtn" onclick="toggleRemoteForm()">Run Remote ▼</button>
+    <button onclick="cancelTest()" style="background:#ef4444;">Stop</button>
+    <button onclick="resetForm()" style="background:#475569;">Reset</button>
+    <div id="remoteForm">
+        <div class="remote-form-row" style="margin-top:0.75rem;">
+            <label for="remoteHost">Host:</label>
+            <input type="text" id="remoteHost" placeholder="localhost" style="width:180px; margin:0;" />
+            <label for="remotePort">Port:</label>
+            <input type="text" id="remotePort" placeholder="3000" style="width:90px; margin:0;" />
+            <button onclick="executeRemoteTest()" style="margin:0;">Execute</button>
+        </div>
+    </div>
+</div>
+
+<!-- Status + Results -->
+<div class="card">
+    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
+        <span class="section-title" style="margin:0;">Status</span>
+        <span id="status" style="font-size:0.85rem; color:#94a3b8;">Idle</span>
+        <a id="remoteDashboardLink" href="#" target="_blank"
+           style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">curl-load dashboard ↗</a>
+    </div>
+    <div id="report"></div>
+    <pre id="results" style="margin-top:0.75rem;"></pre>
+</div>
+
+<!-- Chart -->
+<div class="card">
+    <h3>Latency Chart</h3>
+    <canvas id="latencyChart" height="120"></canvas>
+</div>
+
+<script>
+    let latencyChart = null;
+    let cancelled = false;
+    const STORAGE_KEY = 'loadTesterFormData';
+    const PROFILES_KEY = 'loadTester.profiles';
+    const LAST_PROFILE_KEY = 'loadTester.lastProfile';
+    const defaultValues = {
+        projectName: '',
+        curlInput: '',
+        durationType: 'time',
+        duration: 300,
+        iterations: 100,
+        pause: 1,
+        users: 1,
+        ramp: 30,
+        responseContentType: '*',
+        validationExpression: '',
+        authType: 'none',
+        authToken: '',
+        authUsername: '',
+        authPassword: '',
+        headers: [],
+        variables: [],
+        remoteHost: '',
+        remotePort: '',
+        remoteExpanded: false
+    };
+
+    function buildBuiltins({ userId, iteration }) {
+        return {
+            user: userId,
+            iteration,
+            timestamp: Date.now(),
+            isoTimestamp: new Date().toISOString()
+        };
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadFormValues();
+        const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'remoteHost', 'remotePort', 'authType', 'authToken', 'authUsername', 'authPassword'];
+        fields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', saveFormValues);
+            if (el) el.addEventListener('change', saveFormValues);
+        });
+        document.getElementById('variables').addEventListener('input', saveFormValues);
+        document.getElementById('variables').addEventListener('change', saveFormValues);
+        document.getElementById('headersContainer').addEventListener('input', saveFormValues);
+        document.getElementById('durationType').addEventListener('change', () => {
+            const type = document.getElementById('durationType').value;
+            document.getElementById('timeDurationWrapper').style.display = type === 'time' ? 'block' : 'none';
+            document.getElementById('iterationWrapper').style.display = type === 'iteration' ? 'block' : 'none';
+        });
+
+        refreshProfileDropdown();
+
+        const lastProfile = localStorage.getItem(LAST_PROFILE_KEY);
+        if (lastProfile) {
+            const select = document.getElementById('scenarioSelect');
+            select.value = lastProfile;
+            loadProfile();
+        }
+    });
+
+    function getStorageKey() {
+        const projectName = document.getElementById('projectName')?.value.trim() || '';
+        return projectName ? `${STORAGE_KEY}.${projectName}` : STORAGE_KEY;
+    }
+
+    function normalizeCurl(curl) {
+        return curl.replace(/\\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function stripTrailingComma(jsonStr) {
+        try {
+            return jsonStr.replace(/,\s*([}\]])/g, '$1');
+        } catch (e) {
+            return jsonStr;
+        }
+    }
+
+    function parseCurlCommand(curl) {
+        curl = normalizeCurl(curl);
+        const methodMatch = curl.match(/-X\s+(\w+)/i);
+        const urlMatch = curl.match(/(https?:\/\/[^\s']+)/i);
+        const headerMatches = [...curl.matchAll(/-H\s+'([^:]+):\s*(.*?)'/gi)];
+        const dataMatch = curl.match(/-d\s+'([\s\S]+?)'/i);
+
+        let method = methodMatch ? methodMatch[1].toUpperCase() : undefined;
+        if (!method && dataMatch) method = 'POST';
+        method = method || 'GET';
+
+        const url = urlMatch ? urlMatch[1] : '';
+        const headers = {};
+        headerMatches.forEach(match => {
+            headers[match[1]] = match[2];
+        });
+        const body = dataMatch ? stripTrailingComma(dataMatch[1]) : undefined;
+        return { method, url, headers, body };
+    }
+
+    function cancelTest() {
+        cancelled = true;
+        document.getElementById('status').textContent = 'Cancelled';
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    let varCounter = 0;
+
+    function addVariable(name = '', value = '') {
+        const idx = ++varCounter;
+        const div = document.createElement('div');
+        div.className = 'variable-row';
+        div.innerHTML = `
+        <input id="varName_${idx}" name="varName_${idx}" placeholder="Variable name" value="${escapeHtml(name)}" style="flex: 1;" />
+        <input id="varValue_${idx}" name="varValue_${idx}" class="variable-value" placeholder="Value" value="${escapeHtml(value)}" style="flex: 2;" />
+        <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv" onchange="loadFileToVariable(this)" style="flex: 1;" />
+        <select id="varType_${idx}" name="varType_${idx}" class="variable-type" style="flex: 1;width:100px;">
+            <option value="constant">Constant</option>
+            <option value="sequential">Sequential</option>
+            <option value="random">Random</option>
+        </select>
+        <button onclick="deleteVariable(this)" title="Remove variable" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0; align-self:flex-end;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+    `;
+        document.getElementById('variables').appendChild(div);
+    }
+
+    function escapeForJsonString(str) {
+        return JSON.stringify(str).slice(1, -1);
+    }
+
+    function deleteVariable(btn) {
+        const row = btn.parentNode;
+        const nameInput = row.querySelector('input');
+        const valueField = row.querySelector('.variable-value');
+        const varName = nameInput?.value.trim();
+        const firstValue = valueField?.value.split(/[\n,]/)[0].trim() ?? '';
+
+        if (varName) {
+            const curlEl = document.getElementById('curlInput');
+            const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            curlEl.value = curlEl.value.replace(
+                new RegExp('\\$\\{' + escaped + '\\}', 'g'),
+                firstValue
+            );
+        }
+
+        row.remove();
+        saveFormValues();
+    }
+
+    function loadFileToVariable(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const content = reader.result;
+            const values = content.includes(',') ? content.split(',') : content.split(/\r?\n/);
+            const cleanValues = values.map(v => v.trim()).filter(Boolean).join('\n');
+
+            const row = input.parentNode;
+            let valueField = row.querySelector('.variable-value');
+
+            // Promote plain input → textarea now that we have multi-line CSV data
+            if (valueField && valueField.tagName === 'INPUT') {
+                const textarea = document.createElement('textarea');
+                textarea.className = 'variable-value';
+                textarea.placeholder = 'Comma-separated or newline-separated values';
+                textarea.rows = 3;
+                textarea.style.cssText = 'flex: 2; overflow: auto; resize: vertical;';
+                valueField.replaceWith(textarea);
+                valueField = textarea;
+            }
+
+            if (valueField) {
+                valueField.value = cleanValues;
+                saveFormValues();
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function substituteVariables(text, variableDefs = {}, options = {}) {
+        const builtins = options.builtins || {};
+        const iteration = options.iteration ?? 0;
+
+        return text.replace(/\$\{(\w+)}/g, (_, name) => {
+            let rawValue = '';
+
+            if (name === 'random') {
+                rawValue = String(Math.floor(Math.random() * 1_000_000));
+            } else if (name in builtins) {
+                rawValue = String(builtins[name]);
+            } else {
+                const def = variableDefs[name];
+
+                if (!def || !def.values?.length) {
+                    rawValue = '';
+                } else {
+                    switch (def.type) {
+                        case 'constant':
+                            rawValue = def.values[0];
+                            break;
+                        case 'sequential':
+                            rawValue = def.values[iteration % def.values.length];
+                            break;
+                        case 'random':
+                            rawValue = def.values[Math.floor(Math.random() * def.values.length)];
+                            break;
+                        default:
+                            rawValue = def.values[0];
+                            break;
+                    }
+                }
+            }
+
+            return escapeForJsonString(String(rawValue));
+        });
+    }
+
+    function saveFormValues() {
+        const formData = {
+            projectName: document.getElementById('projectName').value,
+            curlInput: document.getElementById('curlInput').value,
+            durationType: document.getElementById('durationType').value,
+            duration: document.getElementById('duration').value,
+            iterations: document.getElementById('iterations').value,
+            pause: document.getElementById('pause').value,
+            users: document.getElementById('users').value,
+            ramp: document.getElementById('ramp').value,
+            responseContentType: document.getElementById('responseContentType').value,
+            validationExpression: document.getElementById('validationExpression').value,
+            authType: document.getElementById('authType').value,
+            authToken: document.getElementById('authToken').value,
+            authUsername: document.getElementById('authUsername').value,
+            authPassword: document.getElementById('authPassword').value,
+            headers: Array.from(document.querySelectorAll('.header-row')).map(row => ({
+                name:  row.querySelector('.header-name')?.value  || '',
+                value: row.querySelector('.header-value')?.value || '',
+            })),
+            variables: Array.from(document.querySelectorAll('.variable-row')).map(row => {
+                const nameInput = row.querySelector('[id^="varName_"]');
+                const valuesInput = row.querySelector('.variable-value');
+                const typeSelect = row.querySelector('.variable-type');
+
+                return {
+                    name: nameInput.value,
+                    values: valuesInput.value,
+                    type: typeSelect.value,
+                    multiline: valuesInput.tagName === 'TEXTAREA'
+                };
+            }),
+            remoteHost: document.getElementById('remoteHost').value,
+            remotePort: document.getElementById('remotePort').value,
+            remoteExpanded: document.getElementById('remoteForm').style.display !== 'none'
+        };
+        localStorage.setItem(getStorageKey(), JSON.stringify(formData));
+    }
+
+    function loadFormValues() {
+        const saved = localStorage.getItem(getStorageKey());
+        const formData = saved ? JSON.parse(saved) : defaultValues;
+        document.getElementById('projectName').value = formData.projectName;
+        document.getElementById('curlInput').value = formData.curlInput;
+        document.getElementById('durationType').value = formData.durationType;
+        document.getElementById('duration').value = formData.duration;
+        document.getElementById('iterations').value = formData.iterations;
+        document.getElementById('pause').value = formData.pause;
+        document.getElementById('users').value = formData.users;
+        document.getElementById('ramp').value = formData.ramp;
+
+        document.getElementById('durationType').dispatchEvent(new Event('change'));
+        document.getElementById('responseContentType').value = formData.responseContentType || '*';
+        document.getElementById('validationExpression').value = formData.validationExpression || '';
+        onResponseTypeChange();
+
+        document.getElementById('remoteHost').value = formData.remoteHost || '';
+        document.getElementById('remotePort').value = formData.remotePort || '';
+        const remoteForm = document.getElementById('remoteForm');
+        const remoteBtn = document.getElementById('remoteToggleBtn');
+        if (formData.remoteExpanded) {
+            remoteForm.style.display = 'block';
+            remoteBtn.textContent = 'Run Remote Test ▲';
+        } else {
+            remoteForm.style.display = 'none';
+            remoteBtn.textContent = 'Run Remote Test ▼';
+        }
+
+        document.getElementById('authType').value     = formData.authType     || 'none';
+        document.getElementById('authToken').value    = formData.authToken    || '';
+        document.getElementById('authUsername').value = formData.authUsername || '';
+        document.getElementById('authPassword').value = formData.authPassword || '';
+        onAuthTypeChange();
+
+        document.getElementById('headersContainer').innerHTML = '';
+        (formData.headers || []).forEach(({ name, value }) => addHeader(name, value));
+
+        document.getElementById('variables').innerHTML = '';
+        formData.variables.forEach(({ name, values, type = 'constant', multiline }) => {
+            const idx = ++varCounter;
+            const div = document.createElement('div');
+            div.className = 'variable-row';
+            const valueField = multiline
+                ? `<textarea id="varValue_${idx}" name="varValue_${idx}" class="variable-value" placeholder="Comma-separated or newline-separated values"
+                             rows="3" style="flex: 2; overflow:auto; resize:vertical;">${escapeHtml(values)}</textarea>`
+                : `<input id="varValue_${idx}" name="varValue_${idx}" class="variable-value" placeholder="Value" value="${escapeHtml(values)}" style="flex: 2;" />`;
+            div.innerHTML = `
+                <input id="varName_${idx}" name="varName_${idx}" placeholder="Variable name" value="${escapeHtml(name)}" style="flex: 1;" />
+                ${valueField}
+                <select id="varType_${idx}" name="varType_${idx}" class="variable-type" style="width:100px;flex: 1;">
+                     <option value="constant" ${type === 'constant' ? 'selected' : ''}>Constant</option>
+                     <option value="sequential" ${type === 'sequential' ? 'selected' : ''}>Sequential</option>
+                     <option value="random" ${type === 'random' ? 'selected' : ''}>Random</option>
+                </select>
+                <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv" onchange="loadFileToVariable(this)" style="flex: 1;" />
+                <button onclick="deleteVariable(this)" title="Remove variable" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0; align-self:flex-end;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+            `;
+            document.getElementById('variables').appendChild(div);
+        });
+    }
+    async function runTest() {
+        saveFormValues();
+        cancelled = false;
+        document.getElementById('status').textContent = 'Running';
+        document.getElementById('report').innerHTML = '';
+        document.getElementById('remoteDashboardLink').style.display = 'none';
+
+        const curlTextRaw = document.getElementById('curlInput').value;
+        const durationType = document.getElementById('durationType').value;
+        const durationSec = parseInt(document.getElementById('duration').value);
+        const maxIterations = parseInt(document.getElementById('iterations').value);
+        const pauseSec = parseInt(document.getElementById('pause').value);
+        const peakUsers = parseInt(document.getElementById('users').value);
+        const rampUpSec = parseInt(document.getElementById('ramp').value);
+        const resultsOutput = document.getElementById('results');
+        const variableDefs = getVariableDefinitions();
+        resultsOutput.textContent = 'Running...\n';
+
+        let totalRequests = 0;
+        let successfulRequests = 0;
+        let failedRequests = 0;
+        let validationFailures = 0;
+        let latencies = [];
+        let latencyPoints = []; // {t: ms since test start, v: duration ms}
+        let statusCounts = {};
+
+        const appendResult = (line) => {
+            resultsOutput.textContent += line + '\n';
+            resultsOutput.scrollTop = resultsOutput.scrollHeight;
+        };
+
+        const renderReport = () => {
+            const avg = latencies.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
+            const min = latencies.length ? Math.min(...latencies) : 0;
+            const max = latencies.length ? Math.max(...latencies) : 0;
+            const sorted = [...latencies].sort((a, b) => a - b);
+            const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            const rps = totalRequests > 0 ? (totalRequests / elapsedSec).toFixed(1) : 0;
+            const elapsed = elapsedSec < 60
+                ? `${elapsedSec.toFixed(1)}s`
+                : `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toFixed(0)}s`;
+            document.getElementById('report').innerHTML = `
+                <p><strong>Elapsed:</strong> ${elapsed} &nbsp; <strong>Total Requests:</strong> ${totalRequests} &nbsp; <strong>RPS:</strong> ${rps}</p>
+                <p><strong>Successful:</strong> ${successfulRequests} &nbsp; <strong>Failed:</strong> ${failedRequests}${validationFailures > 0 ? ` &nbsp; <strong>Validation Failures:</strong> ${validationFailures}` : ''}</p>
+                <p><strong>Avg:</strong> ${avg} ms &nbsp; <strong>Min:</strong> ${min} ms &nbsp; <strong>Max:</strong> ${max} ms &nbsp; <strong>p95:</strong> ${p95} ms</p>
+                <p><strong>Status Codes:</strong> ${Object.entries(statusCounts).map(([code, count]) => `${code}: ${count}`).join(' &nbsp; ')}</p>
+            `;
+        };
+
+        const runSingleRequest = async (iteration, userId) => {
+            const builtins = buildBuiltins({ userId, iteration });
+            let parsed;
+            try {
+                parsed = parseCurlCommand(curlTextRaw);
+                if (!parsed.url) {
+                    appendResult(`User ${userId}: Error parsing curl: URL not found.`);
+                    return;
+                }
+                parsed.url = substituteVariables(parsed.url, variableDefs, { builtins, iteration });
+                if (parsed.body) {
+                    parsed.body = substituteVariables(parsed.body, variableDefs, { builtins, iteration });
+                    try {
+                        JSON.parse(parsed.body); // Validate
+                    } catch (err) {
+                        appendResult(`User ${userId}: Invalid JSON body after substitution: ${parsed.body}`);
+                        return;
+                    }
+                }
+            } catch (err) {
+                appendResult(`User ${userId}: Error parsing curl: ${err.message}`);
+                return;
+            }
+
+            const fetchOptions = {
+                method: parsed.method,
+                headers: { ...parsed.headers || {}, ...getAllHeaders() }
+            };
+            if (parsed.body && parsed.method !== 'GET' && parsed.method !== 'HEAD') {
+                fetchOptions.body = parsed.body;
+            }
+
+            const start = performance.now();
+            try {
+                const res = await fetch(parsed.url, fetchOptions);
+                const duration = Math.round(performance.now() - start);
+                const resText = await res.text();
+
+                totalRequests++;
+                successfulRequests++;
+                latencies.push(duration);
+                latencyPoints.push({ t: Date.now() - startTime, v: duration });
+                statusCounts[res.status] = (statusCounts[res.status] || 0) + 1;
+
+                const validation = validateResponse(resText);
+                const validationFailed = validation.includes('❌');
+                if (validationFailed) validationFailures++;
+                const validationNote = validationFailed ? ' ❌ validation failed' : (validation ? ' ✅' : '');
+                appendResult(`User ${userId}: ${res.status} ${res.statusText} (${duration}ms, ${resText.length}B)${validationNote}`);
+                drawLatencyChart(latencyPoints);
+                renderReport();
+            } catch (e) {
+                const duration = Math.round(performance.now() - start);
+                totalRequests++;
+                failedRequests++;
+                latencies.push(duration);
+                latencyPoints.push({ t: Date.now() - startTime, v: duration });
+
+                appendResult(`User ${userId}: Error: ${e.message} (${duration}ms)`);
+                drawLatencyChart(latencyPoints);
+                renderReport();
+            }
+        };
+
+        const startTime = Date.now();
+        const endTime = startTime + durationSec * 1000;
+
+        const scheduleUser = async (userId, delayMs) => {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            let iteration = 0;
+            while (
+                !cancelled &&
+                (
+                    (durationType === 'time' && Date.now() < endTime) ||
+                    (durationType === 'iteration' && iteration < maxIterations)
+                )
+                ) {
+                await runSingleRequest(iteration, userId);
+                iteration++;
+                if (pauseSec > 0) {
+                    await new Promise(resolve => setTimeout(resolve, pauseSec * 1000));
+                }
+            }
+        };
+
+        const userTasks = Array.from({ length: peakUsers }, (_, i) => {
+            const delay = Math.floor((rampUpSec * 1000 / peakUsers) * i);
+            return scheduleUser(i + 1, delay);
+        });
+
+        await Promise.all(userTasks);
+
+        if (!cancelled) {
+            document.getElementById('status').textContent = 'Finished';
+            renderReport();
+        }
+    }
+
+    async function runSingleTest() {
+        saveFormValues();
+        cancelled = false;
+        document.getElementById('status').textContent = 'Running Single Test';
+        document.getElementById('report').innerHTML = '';
+        document.getElementById('results').textContent = '';
+        document.getElementById('remoteDashboardLink').style.display = 'none';
+
+        const curlTextRaw = document.getElementById('curlInput').value;
+        const variableDefs = getVariableDefinitions();
+        const appendResult = (line) => {
+            const resultsOutput = document.getElementById('results');
+            resultsOutput.textContent += line + '\n';
+            resultsOutput.scrollTop = resultsOutput.scrollHeight;
+        };
+
+        let parsed;
+        try {
+            parsed = parseCurlCommand(curlTextRaw);
+            if (!parsed.url) {
+                appendResult(`Error parsing curl: URL not found.`);
+                document.getElementById('status').textContent = 'Failed';
+                return;
+            }
+            const builtins = buildBuiltins({ userId: 1, iteration: 0 });
+            parsed.url = substituteVariables(parsed.url, variableDefs, { builtins, iteration: 0 });
+            if (parsed.body) {
+                parsed.body = substituteVariables(parsed.body, variableDefs, { builtins, iteration: 0 });
+                JSON.parse(parsed.body); // Validate
+            }
+        } catch (err) {
+            appendResult(`Error parsing curl: ${err.message}`);
+            document.getElementById('status').textContent = 'Failed';
+            return;
+        }
+
+        const fetchOptions = {
+            method: parsed.method,
+            headers: { ...parsed.headers || {}, ...getAllHeaders() }
+        };
+        if (parsed.body && parsed.method !== 'GET' && parsed.method !== 'HEAD') {
+            fetchOptions.body = parsed.body;
+        }
+
+        const start = performance.now();
+        try {
+            const res = await fetch(parsed.url, fetchOptions);
+            const duration = Math.round(performance.now() - start);
+            const resText = await res.text();
+            const validationSummary = validateResponse(resText);
+
+            appendResult(`${res.status} ${res.statusText} (${duration}ms, ${resText.length}B)`);
+            appendPrettyJson(resText);
+            drawLatencyChart([{ t: 0, v: duration }]);
+            document.getElementById('status').textContent = 'Finished';
+            document.getElementById('report').innerHTML = `
+                <p><strong>Total Requests:</strong> 1</p>
+                <p><strong>Successful:</strong> ${res.ok ? 1 : 0}</p>
+                <p><strong>Failed:</strong> ${res.ok ? 0 : 1}</p>
+                <p><strong>Latency:</strong> ${duration} ms</p>
+                <p><strong>Status Code:</strong> ${res.status}</p>
+                ${validationSummary}
+            `;
+        } catch (e) {
+            const duration = Math.round(performance.now() - start);
+            appendResult(`Error: ${e.message} (${duration}ms)`);
+            drawLatencyChart([{ t: 0, v: duration }]);
+            document.getElementById('status').textContent = 'Failed';
+            document.getElementById('report').innerHTML = `
+                <p><strong>Total Requests:</strong> 1</p>
+                <p><strong>Successful:</strong> 0</p>
+                <p><strong>Failed:</strong> 1</p>
+                <p><strong>Latency:</strong> ${duration} ms</p>
+                <p><strong>Status Code:</strong> n/a</p>
+            `;
+
+        }
+    }
+
+    function resetForm() {
+        const name = document.getElementById('scenarioSelect').value;
+        if (name) {
+            // Project loaded — restore to last saved state
+            const profiles = getAllProfiles();
+            const data = profiles[name];
+            if (data) {
+                localStorage.setItem(getStorageKey(), JSON.stringify(data));
+                loadFormValues();
+                return;
+            }
+        }
+        // No project — reset to defaults
+        localStorage.removeItem(STORAGE_KEY);
+        loadFormValues();
+    }
+
+    function drawLatencyChart(points) {
+        // Bucket into 1-second intervals and average each bucket
+        const buckets = new Map();
+        for (const { t, v } of points) {
+            const sec = Math.floor(t / 1000);
+            if (!buckets.has(sec)) buckets.set(sec, []);
+            buckets.get(sec).push(v);
+        }
+        const secs = [...buckets.keys()].sort((a, b) => a - b);
+        const labels = secs.map(s => `${s}s`);
+        const data   = secs.map(s => {
+            const vals = buckets.get(s);
+            return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+        });
+
+        const chartCtx = document.getElementById('latencyChart').getContext('2d');
+        if (!latencyChart) {
+            latencyChart = new Chart(chartCtx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Avg Latency (ms)',
+                        data,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        fill: true,
+                        pointRadius: 1,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (s)' } },
+                        y: { title: { display: true, text: 'Latency (ms)' } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { mode: 'index', intersect: false }
+                    }
+                }
+            });
+        } else {
+            latencyChart.data.labels = labels;
+            latencyChart.data.datasets[0].data = data;
+            latencyChart.update();
+        }
+    }
+
+    function appendPrettyJson(jsonText) {
+        const resultsOutput = document.getElementById('results');
+        try {
+            const obj = JSON.parse(jsonText);
+            const pretty = JSON.stringify(obj, null, 2);
+            const highlighted = syntaxHighlight(pretty);
+            resultsOutput.innerHTML += '<div>--- Response Body ---</div>';
+            resultsOutput.innerHTML += `<code>${highlighted}</code>`;
+        } catch {
+            resultsOutput.innerHTML += '<div>--- Response Body (raw) ---</div>';
+            resultsOutput.innerHTML += `<pre>${jsonText}</pre>`;
+        }
+    }
+
+    function syntaxHighlight(json) {
+        if (typeof json != 'string') {
+            json = JSON.stringify(json, undefined, 2);
+        }
+        json = json
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(true|false|null)\b|\b\d+(\.\d+)?\b)/g, match => {
+            let cls = 'number';
+            if (/^"/.test(match)) {
+                cls = /:$/.test(match) ? 'key' : 'string';
+            } else if (/true|false/.test(match)) {
+                cls = 'boolean';
+            } else if (/null/.test(match)) {
+                cls = 'null';
+            }
+            return `<span class="${cls}">${match}</span>`;
+        });
+    }
+
+    function onResponseTypeChange() {
+        const type = document.getElementById('responseContentType').value;
+        const wrapper = document.getElementById('validationWrapper');
+        const label = document.getElementById('validationLabel');
+        const input = document.getElementById('validationExpression');
+
+        const config = {
+            json: { label: 'Expected JSON Path:', placeholder: 'e.g. $.data.ads[0].id' },
+            xml:  { label: 'Expected XPath:',     placeholder: 'e.g. //ads/ad[1]/@id' },
+            text: { label: 'Expected Regex:',      placeholder: 'e.g. "status":"ok"' },
+        };
+
+        if (type === '*') {
+            wrapper.style.display = 'none';
+        } else {
+            const { label: lbl, placeholder } = config[type];
+            label.textContent = lbl;
+            input.placeholder = placeholder;
+            wrapper.style.display = 'block';
+        }
+        saveFormValues();
+    }
+
+    function validateResponse(resText) {
+        const type = document.getElementById('responseContentType').value;
+        const expr = document.getElementById('validationExpression').value.trim();
+
+        if (type === '*' || !expr) return '';
+
+        try {
+            if (type === 'json') {
+                const parsed = JSON.parse(resText);
+                const result = validateJsonPathPlus(parsed, expr);
+                return `<p><strong>Validation:</strong> ${result.message}</p>`;
+            }
+            if (type === 'xml') {
+                const doc = new DOMParser().parseFromString(resText, 'application/xml');
+                const parseErr = doc.querySelector('parsererror');
+                if (parseErr) return `<p><strong>Validation Error:</strong> Could not parse XML response</p>`;
+                const result = doc.evaluate(expr, doc, null, XPathResult.ANY_TYPE, null);
+                const node = result.iterateNext();
+                return node
+                    ? `<p><strong>Validation:</strong> ✅ ${expr} matched</p>`
+                    : `<p><strong>Validation:</strong> ❌ ${expr} not found</p>`;
+            }
+            if (type === 'text') {
+                const match = new RegExp(expr).test(resText);
+                return match
+                    ? `<p><strong>Validation:</strong> ✅ pattern matched</p>`
+                    : `<p><strong>Validation:</strong> ❌ pattern not matched</p>`;
+            }
+        } catch (err) {
+            return `<p><strong>Validation Error:</strong> ${err.message}</p>`;
+        }
+        return '';
+    }
+
+    function validateJsonPathPlus(json, path) {
+        try {
+            const result = JSONPath.JSONPath({ path, json });
+
+            const pass = result && result.length > 0;
+
+            return {
+                success: pass,
+                message: pass
+                    ? `✅ ${path} exists in response.`
+                    : `❌ ${path} not found in response.`
+            };
+        } catch (err) {
+            return {
+                success: false,
+                message: `❌ Error evaluating JSONPath '${path}': ${err.message}`
+            };
+        }
+    }
+
+    function getAllProfiles() {
+        return JSON.parse(localStorage.getItem(PROFILES_KEY) || '{}');
+    }
+
+    function saveAllProfiles(profiles) {
+        localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    }
+
+    function refreshProfileDropdown() {
+        const select = document.getElementById('scenarioSelect');
+        const profiles = getAllProfiles();
+        const current = select.value;
+
+        select.innerHTML = '<option value="">-- Project --</option>';
+        Object.keys(profiles).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            if (name === current) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+
+    function addProfile() {
+        document.getElementById('scenarioSelect').value = '';
+        document.getElementById('projectName').value = '';
+        // Load defaults directly without touching any saved profile
+        Object.entries(defaultValues).forEach(([key, val]) => {
+            const field = document.getElementById(key);
+            if (field && typeof val !== 'object') field.value = val;
+        });
+        document.getElementById('durationType').dispatchEvent(new Event('change'));
+        document.getElementById('responseContentType').value = defaultValues.responseContentType;
+        onResponseTypeChange();
+        document.getElementById('authType').value     = 'none';
+        document.getElementById('authToken').value    = '';
+        document.getElementById('authUsername').value = '';
+        document.getElementById('authPassword').value = '';
+        onAuthTypeChange();
+        document.getElementById('headersContainer').innerHTML = '';
+        document.getElementById('variables').innerHTML = '';
+        document.getElementById('projectName').focus();
+    }
+
+    function saveProfile() {
+        const name = document.getElementById('projectName').value.trim();
+        if (!name) {
+            alert("Enter a Project Name before saving a profile.");
+            return;
+        }
+
+        const profiles = getAllProfiles();
+        saveFormValues();
+        profiles[name] = JSON.parse(localStorage.getItem(getStorageKey()));
+        saveAllProfiles(profiles);
+        refreshProfileDropdown();
+        document.getElementById('scenarioSelect').value = name;
+    }
+
+
+    /** Clone selected profile */
+    function cloneProfile() {
+        const select = document.getElementById('scenarioSelect');
+        const current = select.value;
+        if (!current) {
+            alert("Select a profile to clone first.");
+            return;
+        }
+        const newName = prompt("Enter name for cloned profile:");
+        if (!newName) return;
+        const profiles = getAllProfiles();
+        if (!profiles[current]) {
+            alert("Selected profile not found.");
+            return;
+        }
+        profiles[newName] = JSON.parse(JSON.stringify(profiles[current]));
+        saveAllProfiles(profiles);
+        refreshProfileDropdown();
+        document.getElementById('scenarioSelect').value = newName;
+        document.getElementById('projectName').value = newName;
+        loadProfile();
+    }
+
+    /** Delete selected profile */
+    function deleteProfile() {
+        const select = document.getElementById('scenarioSelect');
+        const current = select.value;
+        if (!current) {
+            alert("Select a profile to delete first.");
+            return;
+        }
+        if (!confirm(`Delete profile '${current}'?`)) return;
+        const profiles = getAllProfiles();
+        delete profiles[current];
+        saveAllProfiles(profiles);
+        refreshProfileDropdown();
+        loadProfile(); // clear form if deleted one was selected
+    }
+
+    // ── Auto Extract Variables ────────────────────────────────────────────────
+
+    function sanitizeVarName(raw) {
+        // Convert kebab-case and snake_case to camelCase
+        return raw.replace(/[-_](.)/g, (_, c) => c.toUpperCase());
+    }
+
+    function getExistingVarNames() {
+        const names = new Set();
+        document.querySelectorAll('.variable-row').forEach(row => {
+            const input = row.querySelectorAll('input')[0];
+            if (input && input.value.trim()) names.add(input.value.trim());
+        });
+        return names;
+    }
+
+    function makeUniqueName(base, existingNames) {
+        if (!existingNames.has(base)) return base;
+        let i = 2;
+        while (existingNames.has(base + i)) i++;
+        return base + i;
+    }
+
+    function extractJsonBodyVars(bodyStr, existingNames) {
+        let obj;
+        try { obj = JSON.parse(bodyStr); } catch { return null; }
+
+        const vars = [];
+
+        function processObj(node) {
+            if (Array.isArray(node)) return node.map(processObj);
+            if (node !== null && typeof node === 'object') {
+                const result = {};
+                for (const [k, v] of Object.entries(node)) {
+                    if (v !== null && typeof v === 'object') {
+                        result[k] = processObj(v);
+                    } else {
+                        const strVal = String(v);
+                        if (/^\$\{.+}$/.test(strVal)) {
+                            result[k] = strVal; // already templated
+                        } else {
+                            const varName = makeUniqueName(sanitizeVarName(k), existingNames);
+                            existingNames.add(varName);
+                            vars.push({ name: varName, value: strVal });
+                            result[k] = '${' + varName + '}';
+                        }
+                    }
+                }
+                return result;
+            }
+            return node;
+        }
+
+        const newObj = processObj(obj);
+        return { newBodyStr: JSON.stringify(newObj), vars };
+    }
+
+    // Replace a query param's value in the raw URL string without encoding.
+    function replaceQueryParamInUrl(urlStr, paramKey, newValue) {
+        const escapedKey = paramKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return urlStr.replace(
+            new RegExp(`([?&]${escapedKey}=)[^&#]*`),
+            (_, prefix) => prefix + newValue
+        );
+    }
+
+    function autoExtractVariables() {
+        const curlRaw = document.getElementById('curlInput').value.trim();
+        if (!curlRaw) {
+            alert('Please enter a curl command or URL first.');
+            return;
+        }
+
+        const parsed = parseCurlCommand(curlRaw);
+        const urlStr = parsed.url;
+        if (!urlStr) {
+            alert('No URL found in the input.');
+            return;
+        }
+
+        let urlObj;
+        try {
+            urlObj = new URL(urlStr);
+        } catch {
+            alert('Could not parse URL: ' + urlStr);
+            return;
+        }
+
+        const existingNames = getExistingVarNames();
+        const extracted = [];
+
+        // ── Query parameters (string replacement — no URL encoding) ───────────
+        let newUrl = urlStr;
+        [...urlObj.searchParams.entries()]
+            .filter(([, v]) => !/^\$\{.+}$/.test(v))
+            .forEach(([key, value]) => {
+                const varName = makeUniqueName(sanitizeVarName(key), existingNames);
+                existingNames.add(varName);
+                extracted.push({ name: varName, value });
+                newUrl = replaceQueryParamInUrl(newUrl, key, '${' + varName + '}');
+            });
+
+        // ── JSON body (optional) ──────────────────────────────────────────────
+        let newBodyStr = null;
+        if (parsed.body) {
+            const result = extractJsonBodyVars(parsed.body, existingNames);
+            if (result && result.vars.length > 0) {
+                newBodyStr = result.newBodyStr;
+                result.vars.forEach(v => extracted.push(v));
+            }
+        }
+
+        if (extracted.length === 0) {
+            alert('No extractable parameters found (query params or JSON body).');
+            return;
+        }
+
+        // ── Update curl input ─────────────────────────────────────────────────
+        let updatedCurl = curlRaw.replace(urlStr, () => newUrl);
+        if (newBodyStr && parsed.body) {
+            updatedCurl = updatedCurl.replace(parsed.body, () => newBodyStr);
+        }
+        document.getElementById('curlInput').value = updatedCurl;
+
+        // ── Populate variables table ──────────────────────────────────────────
+        extracted.forEach(({ name, value }) => addVariable(name, value));
+
+        saveFormValues();
+    }
+
+    // ── Headers ───────────────────────────────────────────────────────────────
+
+    let headerCounter = 0;
+
+    function addHeader(name = '', value = '') {
+        const idx = ++headerCounter;
+        const div = document.createElement('div');
+        div.className = 'header-row';
+        div.innerHTML = `
+            <input id="headerName_${idx}"  class="header-name"  placeholder="Header name" value="${escapeHtml(name)}" />
+            <input id="headerValue_${idx}" class="header-value" placeholder="Value"       value="${escapeHtml(value)}" />
+            <button onclick="deleteHeader(this)" title="Remove header" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0; align-self:flex-end;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+        `;
+        document.getElementById('headersContainer').appendChild(div);
+    }
+
+    function deleteHeader(btn) {
+        btn.parentNode.remove();
+        saveFormValues();
+    }
+
+    function onAuthTypeChange() {
+        const type = document.getElementById('authType').value;
+        document.getElementById('authToken').style.display    = type === 'bearer' ? 'block' : 'none';
+        document.getElementById('authUsername').style.display = type === 'basic'  ? 'block' : 'none';
+        document.getElementById('authPassword').style.display = type === 'basic'  ? 'block' : 'none';
+        saveFormValues();
+    }
+
+    function getAuthHeader() {
+        const type = document.getElementById('authType').value;
+        if (type === 'bearer') {
+            const token = document.getElementById('authToken').value.trim();
+            return token ? `Bearer ${token}` : null;
+        }
+        if (type === 'basic') {
+            const user = document.getElementById('authUsername').value;
+            const pass = document.getElementById('authPassword').value;
+            if (user || pass) return `Basic ${btoa(`${user}:${pass}`)}`;
+        }
+        return null;
+    }
+
+    /** Returns merged headers from the Headers section + auth. */
+    function getAllHeaders() {
+        const headers = {};
+        document.querySelectorAll('.header-row').forEach(row => {
+            const name  = row.querySelector('.header-name')?.value.trim();
+            const value = row.querySelector('.header-value')?.value.trim();
+            if (name) headers[name] = value ?? '';
+        });
+        const auth = getAuthHeader();
+        if (auth) headers['Authorization'] = auth;
+        return headers;
+    }
+
+    function autoExtractHeaders() {
+        const curlRaw = document.getElementById('curlInput').value.trim();
+        if (!curlRaw) { alert('Please enter a curl command first.'); return; }
+
+        const parsed = parseCurlCommand(curlRaw);
+        if (!parsed.headers || Object.keys(parsed.headers).length === 0) {
+            alert('No headers found in the curl command.');
+            return;
+        }
+
+        const existingNames = new Set(
+            [...document.querySelectorAll('.header-name')].map(el => el.value.trim().toLowerCase())
+        );
+
+        let added = 0;
+        for (const [name, value] of Object.entries(parsed.headers)) {
+            if (name.toLowerCase() === 'authorization') {
+                const bearerMatch = value.match(/^Bearer\s+(.+)$/i);
+                const basicMatch  = value.match(/^Basic\s+(.+)$/i);
+                if (bearerMatch) {
+                    document.getElementById('authType').value  = 'bearer';
+                    document.getElementById('authToken').value = bearerMatch[1].trim();
+                    onAuthTypeChange();
+                    added++;
+                    continue;
+                }
+                if (basicMatch) {
+                    try {
+                        const decoded  = atob(basicMatch[1].trim());
+                        const colonIdx = decoded.indexOf(':');
+                        document.getElementById('authType').value     = 'basic';
+                        document.getElementById('authUsername').value = decoded.substring(0, colonIdx);
+                        document.getElementById('authPassword').value = decoded.substring(colonIdx + 1);
+                        onAuthTypeChange();
+                        added++;
+                        continue;
+                    } catch { /* not valid base64 — fall through to regular header */ }
+                }
+            }
+            if (!existingNames.has(name.toLowerCase())) {
+                addHeader(name, value);
+                existingNames.add(name.toLowerCase());
+                added++;
+            }
+        }
+
+        if (added === 0) {
+            alert('All headers are already present in the Headers section.');
+            return;
+        }
+        saveFormValues();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function toggleRemoteForm() {
+        const form = document.getElementById('remoteForm');
+        const btn = document.getElementById('remoteToggleBtn');
+        const isVisible = form.style.display !== 'none';
+        form.style.display = isVisible ? 'none' : 'block';
+        btn.textContent = isVisible ? 'Run Remote Test ▼' : 'Run Remote Test ▲';
+        saveFormValues();
+    }
+
+    let remoteRunId = null;
+    let remotePollInterval = null;
+
+    async function executeRemoteTest() {
+        const host = document.getElementById('remoteHost').value.trim() || 'localhost';
+        const port = document.getElementById('remotePort').value.trim() || '3000';
+        const runnerUrl = `http://${host}:${port}`;
+
+        const curlTextRaw = document.getElementById('curlInput').value.trim();
+        if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
+
+        const durationSec = parseInt(document.getElementById('duration').value) || 30;
+        const peakUsers   = parseInt(document.getElementById('users').value)    || 1;
+
+        let parsed;
+        try {
+            parsed = parseCurlCommand(curlTextRaw);
+            if (!parsed.url) throw new Error('URL not found in curl command.');
+            // Do NOT substitute variables — send raw templates so k6 can resolve
+            // per-iteration / per-VU at runtime.
+        } catch (err) {
+            document.getElementById('status').textContent = `Parse error: ${err.message}`;
+            return;
+        }
+
+        document.getElementById('status').textContent = `Submitting to ${runnerUrl}…`;
+        document.getElementById('report').innerHTML  = '';
+        document.getElementById('results').textContent = '';
+        if (remotePollInterval) clearInterval(remotePollInterval);
+
+        let runId;
+        try {
+            const resp = await fetch(`${runnerUrl}/runs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name:      document.getElementById('projectName').value.trim() || undefined,
+                    url:       parsed.url,
+                    method:    parsed.method,
+                    headers:   { ...parsed.headers || {}, ...getAllHeaders() },
+                    body:      parsed.body ? (() => { try { return JSON.parse(parsed.body); } catch { return parsed.body; } })() : null,
+                    variables: getVariableDefinitions(),
+                    users:     peakUsers,
+                    duration:  `${durationSec}s`,
+                    pause:     parseFloat(document.getElementById('pause').value) || 0,
+                }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || resp.statusText);
+            }
+            const run = await resp.json();
+            runId = run.id;
+            remoteRunId = runId;
+
+            document.getElementById('report').innerHTML = '';
+            const dashLink = document.getElementById('remoteDashboardLink');
+            dashLink.href = runnerUrl;
+            dashLink.style.display = 'inline';
+        } catch (err) {
+            document.getElementById('status').textContent = `Runner error: ${err.message}`;
+            return;
+        }
+
+        document.getElementById('status').textContent = `Running on ${runnerUrl} — ID: ${runId}`;
+        document.getElementById('results').textContent = `Run submitted.\nRun ID: ${runId}\nPolling for results…\n`;
+
+        remotePollInterval = setInterval(async () => {
+            try {
+                const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
+                const { status, startedAt } = await r.json();
+                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
+
+                if (['running', 'stopping'].includes(status)) {
+                    try {
+                        const mr = await fetch(`${runnerUrl}/runs/${runId}/metrics`);
+                        if (mr.ok) {
+                            const elapsedSec = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null;
+                            renderRemoteLiveReport(await mr.json(), elapsedSec);
+                        }
+                    } catch { /* transient */ }
+                }
+
+                if (['finished', 'failed', 'stopped'].includes(status)) {
+                    clearInterval(remotePollInterval);
+                    await loadRemoteResults(runnerUrl, runId, status, host);
+                }
+            } catch { /* transient — keep polling */ }
+        }, 1500);
+    }
+
+    function renderRemoteLiveReport(m, elapsedSec) {
+        const elapsed = elapsedSec != null ? (elapsedSec < 60
+            ? `${elapsedSec.toFixed(1)}s`
+            : `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toFixed(0)}s`) : '—';
+        const rps = (m.requests && elapsedSec > 0) ? (m.requests / elapsedSec).toFixed(2) : '—';
+        document.getElementById('report').innerHTML = `
+            <p><strong>Elapsed:</strong> ${elapsed}</p>
+            <p><strong>Total Requests:</strong> ${m.requests ?? '—'}</p>
+            <p><strong>Req/s:</strong> ${rps}</p>
+            <p><strong>Avg Latency:</strong> ${m.avg != null ? m.avg + ' ms' : '—'}</p>
+            <p><strong>p95 Latency:</strong> ${m.p95 != null ? m.p95 + ' ms' : '—'}</p>
+            <p><strong>Max Latency:</strong> ${m.max != null ? m.max + ' ms' : '—'}</p>
+            <p><strong>Error Rate:</strong> ${m.errorRate != null ? m.errorRate + ' %' : '—'}</p>
+        `;
+        if (m.timeseries?.length) drawLatencyChart(m.timeseries);
+    }
+
+    async function loadRemoteResults(runnerUrl, runId, status, host = 'localhost') {
+        if (status === 'finished' || status === 'stopped') {
+            try {
+                const [sr, rr] = await Promise.all([
+                    fetch(`${runnerUrl}/runs/${runId}/summary`),
+                    fetch(`${runnerUrl}/runs/${runId}`),
+                ]);
+                if (sr.ok) {
+                    const data = await sr.json();
+                    const run  = rr.ok ? await rr.json() : {};
+                    const m    = data.metrics || {};
+                    const http = m.http_req_duration?.values || {};
+                    const reqs = m.http_reqs?.values || {};
+                    const errs = m.http_req_failed?.values || {};
+
+                    const elapsedMs = (run.startedAt && run.finishedAt)
+                        ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
+                    const elapsed = elapsedMs != null
+                        ? (elapsedMs < 60000
+                            ? `${(elapsedMs / 1000).toFixed(1)}s`
+                            : `${Math.floor(elapsedMs / 60000)}m ${((elapsedMs % 60000) / 1000).toFixed(0)}s`)
+                        : null;
+
+                    document.getElementById('report').innerHTML = `
+                        ${elapsed ? `<p><strong>Elapsed:</strong> ${elapsed}</p>` : ''}
+                        <p><strong>Total Requests:</strong> ${reqs.count ?? '—'}</p>
+                        <p><strong>Req/s:</strong> ${reqs.rate?.toFixed(2) ?? '—'}</p>
+                        <p><strong>Avg Latency:</strong> ${http.avg?.toFixed(0) ?? '—'} ms</p>
+                        <p><strong>p95 Latency:</strong> ${http['p(95)']?.toFixed(0) ?? '—'} ms</p>
+                        <p><strong>p99 Latency:</strong> ${http['p(99)']?.toFixed(0) ?? '—'} ms</p>
+                        <p><strong>Max Latency:</strong> ${http.max?.toFixed(0) ?? '—'} ms</p>
+                        <p><strong>Error Rate:</strong> ${errs.rate != null ? (errs.rate * 100).toFixed(2) + ' %' : '—'}</p>
+                    `;
+
+                    try {
+                        const mr = await fetch(`${runnerUrl}/runs/${runId}/metrics`);
+                        if (mr.ok) {
+                            const { timeseries } = await mr.json();
+                            if (timeseries?.length) drawLatencyChart(timeseries);
+                        }
+                    } catch { /* chart stays as-is from last live update */ }
+
+                    document.getElementById('results').textContent = '';
+                    return;
+                }
+            } catch { /* fall through */ }
+        }
+
+        document.getElementById('results').textContent = '';
+    }
+
+    function copyCurl(btn) {
+        const raw = document.getElementById('curlInput').value;
+        if (!raw) return;
+        // Substitute variables with their first value before copying
+        const variableDefs = getVariableDefinitions();
+        const builtins = buildBuiltins({ userId: 1, iteration: 0 });
+        const text = substituteVariables(raw, variableDefs, { builtins, iteration: 0 });
+        navigator.clipboard.writeText(text).then(() => {
+            const origBg = btn.style.background;
+            btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
+            setTimeout(() => { btn.style.background = origBg; }, 1500);
+        });
+    }
+
+    /** Load the selected profile into a form */
+    function loadProfile() {
+        const name = document.getElementById('scenarioSelect').value;
+        if (!name) return;
+        const profiles = getAllProfiles();
+        const data = profiles[name];
+        if (!data) return;
+        localStorage.setItem(getStorageKey(), JSON.stringify(data));
+        loadFormValues();
+
+        // Remember the last profile
+        localStorage.setItem(LAST_PROFILE_KEY, name);
+    }
+
+    // ── Import / Export ──────────────────────────────────────────────────────────
+
+    function toggleExportPanel() {
+        const panel = document.getElementById('exportPanel');
+        const btn   = document.getElementById('exportToggleBtn');
+        const open  = panel.style.display === 'none';
+        panel.style.display = open ? 'block' : 'none';
+        btn.textContent = open ? 'Export ▲' : 'Export ▼';
+        if (open) renderExportPanel();
+    }
+
+    function renderExportPanel() {
+        const list     = document.getElementById('exportProjectList');
+        const profiles = getAllProfiles();
+        const names    = Object.keys(profiles);
+        document.getElementById('exportSelectAllBtn').textContent = 'Select All';
+
+        if (names.length === 0) {
+            list.innerHTML = '<span style="font-size:0.82rem; color:#475569;">No saved projects.</span>';
+            return;
+        }
+        list.innerHTML = names.map(name => `
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:#e2e8f0;
+                          cursor:pointer; padding:0.3rem 0.5rem; border-radius:4px; font-family:system-ui;"
+                   onmouseover="this.style.background='#252d3d'" onmouseout="this.style.background=''">
+                <input type="checkbox" class="export-project-cb" value="${escapeHtml(name)}"
+                       style="width:auto; margin:0; accent-color:#3b82f6;" />
+                ${escapeHtml(name)}
+            </label>`).join('');
+    }
+
+    function toggleExportSelectAll() {
+        const allChecked = [...document.querySelectorAll('.export-project-cb')].every(cb => cb.checked);
+        document.querySelectorAll('.export-project-cb').forEach(cb => cb.checked = !allChecked);
+    }
+
+    function exportSelectedProjects() {
+        const selected = [...document.querySelectorAll('.export-project-cb:checked')].map(cb => cb.value);
+        if (selected.length === 0) { alert('Select at least one project to export.'); return; }
+
+        const profiles   = getAllProfiles();
+        const exportData = { version: 1, projects: {} };
+        selected.forEach(name => { if (profiles[name]) exportData.projects[name] = profiles[name]; });
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = Object.assign(document.createElement('a'), { href: url, download: 'load-tester-projects.json' });
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function importProjectsFromFile(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            let parsed;
+            try { parsed = JSON.parse(e.target.result); }
+            catch { alert('Invalid JSON file.'); return; }
+
+            const incoming = parsed.projects;
+            if (!incoming || typeof incoming !== 'object' || Object.keys(incoming).length === 0) {
+                alert('No valid projects found in file.');
+                return;
+            }
+
+            const profiles = getAllProfiles();
+            let imported = 0;
+            Object.entries(incoming).forEach(([name, data]) => {
+                if (!name || typeof data !== 'object') return;
+                const targetName = profiles[name] ? `${name}-imported` : name;
+                profiles[targetName] = data;
+                imported++;
+            });
+
+            if (imported === 0) { alert('No valid projects to import.'); return; }
+
+            saveAllProfiles(profiles);
+            refreshProfileDropdown();
+            document.getElementById('importFileInput').value = '';
+            // Refresh export panel if open
+            if (document.getElementById('exportPanel').style.display !== 'none') renderExportPanel();
+            alert(`Imported ${imported} project${imported !== 1 ? 's' : ''}.`);
+        };
+        reader.readAsText(file);
+    }
+
+    function getVariableDefinitions() {
+        const rows = document.querySelectorAll('.variable-row');
+        const vars = {};
+
+        rows.forEach(row => {
+            const nameInput = row.querySelector('[id^="varName_"]');
+            const valuesInput = row.querySelector('.variable-value');
+            const typeSelect = row.querySelector('.variable-type');
+
+            if (!nameInput || !valuesInput || !typeSelect) return;
+
+            const trimmedName = nameInput.value.trim();
+            const values = valuesInput.value
+                .split(/[\n,]/)
+                .map(v => v.trim())
+                .filter(Boolean);
+
+            if (trimmedName && values.length > 0) {
+                vars[trimmedName] = {
+                    type: typeSelect.value || 'constant',
+                    values
+                };
+            }
+        });
+
+        return vars;
+    }
+</script>
+</body>
+</html>

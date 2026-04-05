@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 2026 Stephen Ince
+  All rights reserved.
+
+  This software is licensed for personal and internal use only.
+  See the LICENSE file in the project root for full terms.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>curl-load dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 1.5rem;
+      min-height: 100vh;
+    }
+
+    h1 { font-size: 1.5rem; color: #7dd3fc; grid-column: 1 / -1; }
+    h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 1rem; }
+
+    .card {
+      background: #1e2330;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.35rem; }
+
+    textarea, input, select {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      color: #e2e8f0;
+      padding: 0.5rem;
+      font-size: 0.9rem;
+      font-family: monospace;
+    }
+
+    textarea { resize: vertical; min-height: 80px; overflow-y: hidden; }
+
+    .row { display: flex; gap: 1rem; }
+    .row > * { flex: 1; }
+
+    .variable-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.4rem;
+      margin-bottom: 0.4rem;
+      flex-wrap: wrap;
+    }
+    .variable-row input, .variable-row select {
+      margin-bottom: 0;
+      padding: 0.3rem 0.5rem;
+      font-size: 0.82rem;
+    }
+    .variable-row input { flex: 1; }
+    .variable-row select { width: 110px; flex-shrink: 0; }
+
+    button {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.6rem 1.4rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { background: #475569; cursor: not-allowed; }
+
+    #stopBtn { background: #ef4444; margin-left: 0.5rem; }
+    #stopBtn:hover { background: #dc2626; }
+
+    .status-badge {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      display: inline-block;
+      font-weight: 600;
+    }
+    .status-created  { background: #1e3a5f; color: #7dd3fc; }
+    .status-running  { background: #14532d; color: #86efac; }
+    .status-finished { background: #1a2e05; color: #a3e635; }
+    .status-failed   { background: #450a0a; color: #fca5a5; }
+    .status-stopped  { background: #1c1917; color: #a8a29e; }
+    .status-stopping { background: #431407; color: #fdba74; }
+
+    pre {
+      background: #0f1117;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    #runInfo { display: none; }
+
+    /* ── Run history ── */
+    #historyPanel {
+      background: #1e2330;
+      border-radius: 8px;
+      padding: 1.25rem;
+      overflow-y: auto;
+      max-height: calc(100vh - 6rem);
+    }
+
+    #historyList { list-style: none; }
+
+    .run-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      margin-bottom: 0.4rem;
+      transition: background 0.15s;
+    }
+    .run-row:hover  { background: #252d3d; }
+    .run-row.active { background: #1d2d44; border-color: #3b82f6; }
+
+.run-row-url {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .run-row-meta {
+      font-size: 0.72rem;
+      color: #475569;
+      white-space: nowrap;
+    }
+
+    #historyDetail {
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .metric-box {
+      background: #0f1117;
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+    }
+
+    .metric-label { font-size: 0.7rem; color: #64748b; margin-bottom: 0.15rem; }
+    .metric-value { font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }
+
+    .detail-url {
+      font-size: 0.75rem;
+      color: #64748b;
+      word-break: break-all;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Checkbox */
+    .run-checkbox {
+      width: 14px; height: 14px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: #3b82f6;
+      margin: 0;
+    }
+
+    /* Run row name line */
+    .run-row-name {
+      font-size: 0.78rem;
+      color: #e2e8f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+    .run-row-info { flex: 1; min-width: 0; overflow: hidden; }
+    .run-row-label { cursor: pointer; }
+
+    /* Comparison panel — full-width row below the two columns */
+    #compareDetail {
+      display: none;
+      position: relative;
+      overflow-x: auto;
+      padding-bottom: 0.75rem;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+    #compareDetail::-webkit-scrollbar       { height: 5px; }
+    #compareDetail::-webkit-scrollbar-track { background: transparent; }
+    #compareDetail::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
+    #compareDetail::after {
+      content: '';
+      position: sticky;
+      right: 0;
+      top: 0;
+      flex-shrink: 0;
+      width: 48px;
+      pointer-events: none;
+      background: linear-gradient(to right, transparent, #0f1117);
+    }
+    .compare-grid {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    .compare-card {
+      flex: 1 1 310px;
+      min-width: 310px;
+      background: #161b27;
+      border: 1px solid #1e2a3a;
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+    }
+    .compare-card-name { font-size: 0.8rem; font-weight: 600; color: #e2e8f0; margin-bottom: 0.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .compare-card-url  { font-size: 0.68rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .compare-card-meta { font-size: 0.68rem; color: #475569; margin-top: 0.25rem; }
+    .compare-card pre  { font-size: 0.71rem; margin: 0.5rem 0 0; background: #0f1117; border: 1px solid #1e293b; border-radius: 4px; padding: 0.5rem; white-space: pre; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>curl-load dashboard <a href="/load-tester.html" target="_blank" style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load workbench →</a></h1>
+
+  <!-- Left column: form -->
+  <div>
+    <div class="card">
+      <label>Project name</label>
+      <input id="projectName" type="text" placeholder="e.g. my-api" style="margin-bottom:0.6rem;" />
+      <label>URL</label>
+      <input id="url" type="text" placeholder="https://example.com/api/endpoint" />
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Method</label>
+          <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+          </select>
+        </div>
+        <div>
+          <label>Virtual Users</label>
+          <input id="users" type="number" value="10" min="1" />
+        </div>
+        <div>
+          <label>Duration</label>
+          <input id="duration" type="text" value="30s" placeholder="30s" />
+        </div>
+        <div>
+          <label>Pause (s)</label>
+          <input id="pause" type="number" value="1" min="0" step="0.1" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label>Headers (JSON, optional)</label>
+      <textarea id="headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
+    </div>
+
+    <div class="card">
+      <label>Body (JSON, optional)</label>
+      <textarea id="body" placeholder='{ "key": "value" }'></textarea>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+        <h2 style="margin:0;">Variables</h2>
+        <button onclick="addVariable()" style="padding:0.3rem 0.8rem; font-size:0.8rem;">+ Add</button>
+      </div>
+      <div id="variables"></div>
+    </div>
+
+    <div style="margin-bottom:1rem;">
+      <button id="runBtn">Run Test</button>
+      <button id="stopBtn" style="display:none;">Stop</button>
+    </div>
+
+  </div>
+
+  <!-- Right column: run history -->
+  <div id="historyPanel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+      <h2 style="margin:0;">Past Runs</h2>
+      <button id="refreshBtn" style="padding:0.3rem 0.8rem; font-size:0.8rem;">Refresh</button>
+    </div>
+
+    <ul id="historyList"><li style="color:#475569; font-size:0.85rem;">No runs yet.</li></ul>
+
+    <div id="historyDetail">
+      <div class="detail-url" id="detailUrl"></div>
+      <div class="metric-grid" id="detailMetrics"></div>
+      <div style="display:flex; align-items:center; margin-bottom:0.5rem;">
+        <span id="status" class="status-badge" style="display:none;"></span>
+        <a id="dashboardLink" href="#" target="_blank"
+           style="display:none; font-size:0.75rem; color:#7dd3fc; text-decoration:none; margin-left:0.75rem;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">View K6 Dashboard ↗</a>
+        <a id="pdfLink" href="#"
+           style="display:none; font-size:0.75rem; color:#94a3b8; text-decoration:none; margin-left:0.75rem;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">Download PDF ↓</a>
+        <div style="margin-left:auto; display:flex; gap:0.3rem; align-items:center;">
+          <button onclick="copyReport(this)" title="Copy to clipboard"
+            style="background: url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22 aria-hidden=%22true%22><path fill=%22%23aaa%22 fill-rule=%22evenodd%22 d=%22M4 12h4v1H4zm5-6H4v1h5zm2 3V7l-3 3 3 3v-2h5V9zM6.5 8H4v1h2.5zM4 11h2.5v-1H4zm9 1h1v2c-.02.28-.11.52-.3.7s-.42.28-.7.3H3c-.55 0-1-.45-1-1V3c0-.55.45-1 1-1h3c0-1.11.89-2 2-2s2 .89 2 2h3c.55 0 1 .45 1 1v5h-1V5H3v9h10zM4 4h8c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1s-.45-1-1-1-1 .45-1 1-.45 1-1 1H5c-.55 0-1 .45-1 1%22/></svg>') 50% no-repeat; border:none; width:25px; height:25px; padding:0; cursor:pointer; flex-shrink:0; opacity:0.6; margin:0;"
+            onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"></button>
+          <button id="modeTextBtn" onclick="setOutputMode('text')"
+            style="padding:0.15rem 0.55rem; font-size:0.75rem; margin:0; background:#3b82f6;">Text</button>
+          <button id="modeJsonBtn" onclick="setOutputMode('json')"
+            style="padding:0.15rem 0.55rem; font-size:0.75rem; margin:0; background:#475569;">JSON</button>
+          <button id="outputToggleBtn" onclick="toggleOutput()" title="Toggle full report"
+            style="padding:0.15rem 0.4rem; font-size:0.7rem; margin:0; background:#1e2330; border:1px solid #334155; color:#64748b; cursor:pointer;">▼</button>
+        </div>
+      </div>
+      <pre id="detailOutput">Loading…</pre>
+    </div>
+  </div>
+
+  <!-- Full-width comparison panel — shown when 2+ runs are selected -->
+  <div id="compareDetail" style="display:none; grid-column:1/-1;">
+    <div class="compare-grid" id="compareGrid"></div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    function autoExpand(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+    document.querySelectorAll('textarea').forEach(ta => {
+      ta.addEventListener('input', () => autoExpand(ta));
+      autoExpand(ta);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 2026 Stephen Ince
+  All rights reserved.
+
+  This software is licensed for personal and internal use only.
+  See the LICENSE file in the project root for full terms.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>curl-load Documentation</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    h1 { font-size: 1.5rem; color: #7dd3fc; margin-bottom: 1.5rem; }
+    h2 { font-size: 1.1rem; color: #7dd3fc; margin-bottom: 0.75rem; margin-top: 0.25rem; }
+    h3 { font-size: 0.95rem; color: #94a3b8; margin-bottom: 0.5rem; margin-top: 0.25rem; }
+    h4 { font-size: 0.875rem; color: #94a3b8; margin-bottom: 0.4rem; margin-top: 0.25rem; }
+
+    p { font-size: 0.9rem; color: #cbd5e1; margin-bottom: 0.6rem; }
+
+    .card {
+      background: #1e2330;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .card + .card { margin-top: 0; }
+
+    ul, ol {
+      padding-left: 1.25rem;
+      margin-bottom: 0.6rem;
+    }
+
+    li {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      margin-bottom: 0.25rem;
+    }
+
+    li b { color: #e2e8f0; }
+
+    pre, code {
+      font-family: monospace;
+    }
+
+    pre {
+      background: #0f1117;
+      border: 1px solid #1e293b;
+      border-radius: 4px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      color: #e2e8f0;
+      margin-bottom: 0.6rem;
+    }
+
+    code {
+      background: #1e2330;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      padding: 0.1rem 0.35rem;
+      font-size: 0.82rem;
+      color: #86efac;
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: inherit;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    th {
+      background: #0f1117;
+      color: #94a3b8;
+      text-align: left;
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #334155;
+      font-weight: 600;
+    }
+
+    td {
+      padding: 0.45rem 0.65rem;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+
+    td:first-child {
+      color: #86efac;
+      font-family: monospace;
+      font-size: 0.82rem;
+    }
+
+    tr:nth-child(even) td { background: #161b27; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #1e293b;
+      margin: 1rem 0;
+    }
+
+    .tip {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    .warning {
+      background: #2d1a0e;
+      border: 1px solid #7c2d12;
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      color: #fdba74;
+      font-size: 0.875rem;
+    }
+
+    .warning b { color: #fb923c; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<h1>curl-load Documentation</h1>
+
+<div class="card">
+  <h2>🚀 Getting Started</h2>
+  <p>Turn any curl command into a load test in seconds.</p>
+
+  <hr class="divider">
+
+  <h3>1. Paste your curl</h3>
+  <pre><code>curl -X GET 'https://api.example.com/products'</code></pre>
+
+  <h3>2. Configure the test</h3>
+  <ul>
+    <li><b>Users</b> → number of concurrent users</li>
+    <li><b>Duration</b> → how long the test runs</li>
+    <li><b>Ramp-up</b> → how quickly load increases</li>
+  </ul>
+  <p class="tip">Tip: Start small (1–5 users) for real systems.</p>
+
+  <hr class="divider">
+
+  <h3>3. Run the test</h3>
+  <p>Click <b>Run Test</b> to see:</p>
+  <ul>
+    <li>Live results</li>
+    <li>Latency chart</li>
+    <li>Success / failure counts</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>4. Add variables (optional)</h3>
+  <p>Use variables to change request values:</p>
+  <pre><code>${variableName}</code></pre>
+  <p>Example:</p>
+  <pre><code>curl -X POST 'https://api.example.com/cart' \
+  -H 'Content-Type: application/json' \
+  -d '{"productId": "${productId}", "qty": 1}'</code></pre>
+  <p>Define:</p>
+  <ul>
+    <li>Name: <b>productId</b></li>
+    <li>Type: <b>Sequential</b></li>
+    <li>Values: 101, 102, 103</li>
+  </ul>
+  <p>Each request will use the next value.</p>
+
+  <hr class="divider">
+
+  <h3>5. Compare runs</h3>
+  <p>Select multiple runs and click <b>Compare</b> to analyze performance differences.</p>
+</div>
+
+<div class="card">
+  <h2>Variables</h2>
+  <p>Variables allow dynamic values in your requests.</p>
+
+  <h3>Syntax</h3>
+  <pre><code>${variableName}</code></pre>
+
+  <hr class="divider">
+
+  <h3>Built-in Variables</h3>
+  <table>
+    <tr><th>Variable</th><th>Description</th></tr>
+    <tr><td>${random}</td><td>Random number (0–999999)</td></tr>
+    <tr><td>${user}</td><td>Virtual user ID</td></tr>
+    <tr><td>${iteration}</td><td>Request number per user</td></tr>
+    <tr><td>${timestamp}</td><td>Current timestamp</td></tr>
+    <tr><td>${isoTimestamp}</td><td>ISO formatted time</td></tr>
+  </table>
+
+  <hr class="divider">
+
+  <h3>User Variables</h3>
+  <p>Each variable has:</p>
+  <ul>
+    <li>Name</li>
+    <li>Type</li>
+    <li>Values</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>Variable Types</h3>
+
+  <h4>Constant (same value every time)</h4>
+  <pre><code>Values: 101, 102, 103
+
+Request 1 → 101
+Request 2 → 101
+Request 3 → 101</code></pre>
+
+  <h4>Sequential (next value per request)</h4>
+  <pre><code>Values: 101, 102, 103, 104
+
+Request 1 → 101
+Request 2 → 102
+Request 3 → 103
+Request 4 → 104
+Request 5 → 101 (loops back)</code></pre>
+  <p><b>Best for:</b> realistic data simulation</p>
+
+  <h4>Random (random value each request)</h4>
+  <pre><code>Values: 101, 102, 103
+
+Request 1 → 102
+Request 2 → 101
+Request 3 → 103</code></pre>
+  <p><b>Best for:</b> spreading load, avoiding caching</p>
+
+  <hr class="divider">
+
+  <h3>Example</h3>
+  <pre><code>curl -X GET 'https://api.example.com/products?category=${category}'</code></pre>
+  <p>Variable:</p>
+  <pre><code>category
+Type: Random
+Values:
+books
+electronics
+clothing</code></pre>
+  <p>Each request hits a different category.</p>
+
+  <hr class="divider">
+
+  <h3>Local vs Remote</h3>
+  <ul>
+    <li><b>Local:</b> variables change per request</li>
+    <li><b>Remote:</b> variables change per user and per iteration</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>Key Idea</h3>
+  <ul>
+    <li>Constant → same value</li>
+    <li>Sequential → next value</li>
+    <li>Random → different value</li>
+  </ul>
+  <p><b>Variables control how your data changes across requests.</b></p>
+</div>
+
+<div class="warning">
+  ⚠️ <b>Safety:</b> This tool generates load. Be careful when running against production systems.
+</div>
+
+</div>
+</body>
+</html>
