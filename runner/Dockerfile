@@ -6,25 +6,33 @@ COPY runner/package*.json ./runner/
 RUN cd runner && npm ci
 
 COPY runner ./runner
-COPY web ./web
 COPY public ./public
+COPY web ./web
+COPY LICENSE /app/LICENSE
 
-RUN mkdir -p /app/build/public \
- && npx --prefix /app/runner html-minifier-terser \
+RUN ls -la /app
+RUN ls -la /app/web || true
+RUN ls -la /app/public || true
+
+RUN mkdir -p /app/build/public
+
+RUN npx --prefix /app/runner html-minifier-terser \
     --collapse-whitespace \
     --remove-comments \
     --minify-css true \
     --minify-js true \
     -o /app/build/public/index.html \
-    /app/web/index.html \
- && npx --prefix /app/runner html-minifier-terser \
+    /app/web/index.html
+
+RUN npx --prefix /app/runner html-minifier-terser \
     --collapse-whitespace \
     --remove-comments \
     --minify-css true \
     --minify-js true \
     -o /app/build/public/load-tester.html \
-    /app/public/load-tester.html \
- && if [ -f /app/public/documentation.html ]; then \
+    /app/public/load-tester.html
+
+RUN if [ -f /app/public/documentation.html ]; then \
       npx --prefix /app/runner html-minifier-terser \
         --collapse-whitespace \
         --remove-comments \
@@ -33,6 +41,10 @@ RUN mkdir -p /app/build/public \
         -o /app/build/public/documentation.html \
         /app/public/documentation.html ; \
     fi
+
+RUN for f in /app/build/public/*.html; do \
+  (echo "<!--!"; cat /app/LICENSE; echo "-->"; cat "$f") > /tmp/out && mv /tmp/out "$f"; \
+done
 
 FROM node:22-alpine
 

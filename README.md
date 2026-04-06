@@ -168,6 +168,12 @@ docker build -t curl-load-runner .
 docker run -p 3000:3000 curl-load-runner
 ```
 
+## Docker (remote)
+
+```bash
+docker run -p 3000:3000 -p 5665:5665 curlload/curl-load-runner:latest
+```
+
 ---
 
 ## How it works

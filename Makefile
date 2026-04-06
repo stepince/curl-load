@@ -1,6 +1,6 @@
 # ---- Config ----
 IMAGE_NAME := curl-load-runner
-DOCKER_USER := stephenince
+DOCKER_USER := curlload
 VERSION := 1.0.0
 
 FULL_IMAGE := $(DOCKER_USER)/$(IMAGE_NAME)
@@ -12,9 +12,18 @@ build:
 		-t $(FULL_IMAGE):latest \
 		.
 
+build-no-cache:
+	docker build --no-cache -f runner/Dockerfile \
+		-t $(FULL_IMAGE):$(VERSION) \
+		-t $(FULL_IMAGE):latest \
+		.
+
 # ---- Run ----
 run:
 	docker run -p 3000:3000 -p 5665:5665 $(FULL_IMAGE):latest
+
+run-version:
+	docker run -p 3000:3000 -p 5665:5665 $(FULL_IMAGE):$(VERSION)
 
 # ---- Docker Hub ----
 login:
