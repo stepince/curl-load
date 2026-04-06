@@ -286,7 +286,53 @@ clothing</code></pre>
     <li>Random → different value</li>
   </ul>
   <p><b>Variables control how your data changes across requests.</b></p>
+
+  <hr class="divider">
+
+  <h3>Execution Modes</h3>
+
+  <p>curl-load supports three ways to run tests depending on your needs:</p>
+
+  <ul>
+    <li>
+      <b>Run Single</b><br>
+      Executes one request directly in the browser.
+      <ul>
+        <li>Best for debugging and validation</li>
+        <li>Shows full response body</li>
+        <li>No load — just a single request</li>
+      </ul>
+    </li>
+
+    <li>
+      <b>Run Test</b><br>
+      Runs a load test directly in the browser using multiple virtual users.
+      <ul>
+        <li>Simulates concurrent users</li>
+        <li>Shows live results and latency chart</li>
+        <li>Limited by browser and network constraints</li>
+      </ul>
+    </li>
+
+    <li>
+      <b>Run Remote</b><br>
+      Executes the test on a remote server (runner).
+      <ul>
+        <li>Best for real load testing</li>
+        <li>Not limited by browser performance</li>
+        <li>Can run inside a VPC or close to your backend</li>
+        <li>Uses the curl-load runner (Docker / k6)</li>
+      </ul>
+    </li>
+  </ul>
+
+  <p class="tip">
+    Tip: Use <b>Run Single</b> to verify your request, <b>Run Test</b> for quick local checks,
+    and <b>Run Remote</b> for production-grade load testing.
+  </p>
+
 </div>
+
 
 <div class="warning">
   ⚠️ <b>Safety:</b> This tool generates load. Be careful when running against production systems.

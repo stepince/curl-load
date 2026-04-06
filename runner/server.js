@@ -29,5 +29,7 @@ app.use('/runs', runsRouter);
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
-  console.log(`curl-load runner listening on http://localhost:${PORT}`);
+  console.log(`🚀 curl-load is running`);
+  console.log(`👉 Workbench: http://localhost:${PORT}/load-tester.html`);
+  console.log(`👉 Dashboard: http://localhost:${PORT}/`);
 });
