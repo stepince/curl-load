@@ -16,6 +16,9 @@ RUN ls -la /app/public || true
 
 RUN mkdir -p /app/build/public
 
+# Copy all public and web assets first, then overwrite HTML files with minified versions
+RUN cp -r /app/public/. /app/build/public/ && cp -r /app/web/. /app/build/public/
+
 RUN npx --prefix /app/runner html-minifier-terser \
     --collapse-whitespace \
     --remove-comments \

@@ -520,8 +520,11 @@
         curl = normalizeCurl(curl);
         const methodMatch = curl.match(/-X\s+(\w+)/i);
         const urlMatch = curl.match(/(https?:\/\/[^\s']+)/i);
-        const headerMatches = [...curl.matchAll(/-H\s+'([^:]+):\s*(.*?)'/gi)];
-        const dataMatch = curl.match(/-d\s+'([\s\S]+?)'/i);
+        const headerMatches = [
+            ...curl.matchAll(/-H\s+'([^:]+):\s*([^']*?)'/gi),
+            ...curl.matchAll(/-H\s+"([^:]+):\s*([^"]*?)"/gi),
+        ];
+        const dataMatch = curl.match(/-d\s+'([\s\S]+?)'/i) || curl.match(/-d\s+"([\s\S]+?)"/i);
 
         let method = methodMatch ? methodMatch[1].toUpperCase() : undefined;
         if (!method && dataMatch) method = 'POST';
@@ -539,6 +542,13 @@
     function cancelTest() {
         cancelled = true;
         document.getElementById('status').textContent = 'Cancelled';
+
+        if (remoteRunId) {
+            const host = document.getElementById('remoteHost').value.trim() || 'localhost';
+            const port = document.getElementById('remotePort').value.trim() || '3000';
+            fetch(`http://${host}:${port}/runs/${remoteRunId}/stop`, { method: 'POST' })
+                .catch(() => {});
+        }
     }
 
     function escapeHtml(str) {
