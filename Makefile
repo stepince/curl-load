@@ -35,6 +35,11 @@ push:
 
 publish: build login push
 
+# ---- k6 ----
+k6:
+	go install go.k6.io/xk6/cmd/xk6@latest
+	cd runner && $$(go env GOPATH)/bin/xk6 build --with github.com/grafana/xk6-dashboard@latest --output k6
+
 # ---- Dev (no Docker) ----
 dev:
 	cd runner && npm install && npm start

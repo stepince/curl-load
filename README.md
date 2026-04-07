@@ -24,8 +24,20 @@ curl-load/
 
 - Node.js 18+
 - [k6](https://k6.io/docs/get-started/installation/) installed and on `$PATH`
+- [Go](https://go.dev/dl/) 1.21+ (only required to build the local k6 binary with the live dashboard extension)
 
-### 1 — Start the runner
+### 1 — Build the local k6 binary (optional)
+
+Provides a live web dashboard on port 5665 during test runs. Requires Go and installs xk6 automatically.
+
+```bash
+go install go.k6.io/xk6/cmd/xk6@latest
+make k6
+```
+
+If you skip this step the runner falls back to the system `k6` on `$PATH`.
+
+### 2 — Start the runner
 
 ```bash
 cd runner

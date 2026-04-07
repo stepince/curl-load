@@ -11,5 +11,8 @@ node_modules/
 # OS
 .DS_Store
 
+# k6 binary (local xk6-dashboard build)
+/runner/k6
+
 /runner/node_modules/
 /CLAUDE.md
