@@ -170,16 +170,9 @@
     }
 
     .metric-label { font-size: 0.7rem; color: #64748b; margin-bottom: 0.15rem; }
-    .metric-value { font-size: 1.1rem; font-weight: 600; color: #e2e8f0; }
+    .metric-value { font-size: 0.88rem; font-weight: 600; color: #e2e8f0; }
 
-    .detail-url {
-      font-size: 0.75rem;
-      color: #64748b;
-      word-break: break-all;
-      margin-bottom: 0.75rem;
-    }
-
-    /* Checkbox */
+/* Checkbox */
     .run-checkbox {
       width: 14px; height: 14px;
       flex-shrink: 0;
@@ -248,16 +241,16 @@
   <!-- Left column: form -->
   <div>
     <div class="card">
-      <label>Project name</label>
+      <label for="projectName">Project name</label>
       <input id="projectName" type="text" placeholder="e.g. my-api" style="margin-bottom:0.6rem;" />
-      <label>URL</label>
+      <label for="url">URL</label>
       <input id="url" type="text" placeholder="https://example.com/api/endpoint" />
     </div>
 
     <div class="card">
       <div class="row">
         <div>
-          <label>Method</label>
+          <label for="method">Method</label>
           <select id="method">
             <option>GET</option>
             <option>POST</option>
@@ -267,28 +260,42 @@
           </select>
         </div>
         <div>
-          <label>Virtual Users</label>
+          <label for="users">Virtual Users</label>
           <input id="users" type="number" value="10" min="1" />
         </div>
         <div>
-          <label>Duration</label>
+          <label for="duration">Duration</label>
           <input id="duration" type="text" value="30s" placeholder="30s" />
         </div>
         <div>
-          <label>Pause (s)</label>
+          <label for="pause">Pause (s)</label>
           <input id="pause" type="number" value="1" min="0" step="0.1" />
         </div>
       </div>
     </div>
 
     <div class="card">
-      <label>Headers (JSON, optional)</label>
+      <label for="headers">Headers (JSON, optional)</label>
       <textarea id="headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
     </div>
 
     <div class="card">
-      <label>Body (JSON, optional)</label>
+      <label for="body">Body (JSON, optional)</label>
       <textarea id="body" placeholder='{ "key": "value" }'></textarea>
+    </div>
+
+    <div class="card">
+      <label for="responseContentType">Response Validation</label>
+      <select id="responseContentType" onchange="onResponseTypeChange()" style="width:auto;">
+        <option value="*">* (any)</option>
+        <option value="text">Text (regex)</option>
+        <option value="xml">XML (XPath)</option>
+        <option value="json">JSON (JSONPath)</option>
+      </select>
+      <div id="validationWrapper" style="display:none; margin-top:0.6rem;">
+        <label id="validationLabel" for="validationExpression"></label>
+        <input id="validationExpression" type="text" placeholder="" />
+      </div>
     </div>
 
     <div class="card">
@@ -316,7 +323,6 @@
     <ul id="historyList"><li style="color:#475569; font-size:0.85rem;">No runs yet.</li></ul>
 
     <div id="historyDetail">
-      <div class="detail-url" id="detailUrl"></div>
       <div class="metric-grid" id="detailMetrics"></div>
       <div style="display:flex; align-items:center; margin-bottom:0.5rem;">
         <span id="status" class="status-badge" style="display:none;"></span>

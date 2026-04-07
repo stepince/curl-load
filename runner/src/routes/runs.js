@@ -23,13 +23,13 @@ runsRouter.get('/:id', (req, res) => {
 
 // POST /runs — start a new load test
 runsRouter.post('/', async (req, res) => {
-  const { url, method, headers, body, users, duration, name, variables, pause } = req.body;
+  const { url, method, headers, body, users, duration, name, variables, pause, responseContentType, validationExpression } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: 'url is required' });
   }
 
-  const run = createRun({ url, method, headers, body, users, duration, name, variables, pause });
+  const run = createRun({ url, method, headers, body, users, duration, name, variables, pause, responseContentType, validationExpression });
 
   // Start k6 in the background — do not await
   startRun(run).catch((err) => {

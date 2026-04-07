@@ -42,3 +42,8 @@ dev:
 # ---- Clean ----
 clean:
 	docker image prune -f
+
+purge:
+	-docker ps -a --filter ancestor=$(FULL_IMAGE):latest --filter ancestor=$(FULL_IMAGE):$(VERSION) -q | xargs -r docker rm -f
+	-docker rmi -f $(FULL_IMAGE):$(VERSION) $(FULL_IMAGE):latest
+	docker image prune -f

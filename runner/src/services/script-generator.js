@@ -17,7 +17,7 @@
  * @returns {string} k6 script source code
  */
 export function generateScript(config, runDir) {
-  const { url, method, headers, body, variables, users, duration, pause } = config;
+  const { url, method, headers, body, variables, users, duration, pause, responseContentType, validationExpression } = config;
 
   // Serialise headers as a JS object literal inside the script
   const headersLiteral = JSON.stringify(headers || {}, null, 2);
@@ -32,6 +32,19 @@ export function generateScript(config, runDir) {
 
   // Variable definitions — embedded as a constant for runtime lookup
   const variablesLiteral = JSON.stringify(variables || {}, null, 2);
+
+  // Build an optional validation check expression for k6
+  let validationCheck = '';
+  if (validationExpression && responseContentType && responseContentType !== '*') {
+    const expr = JSON.stringify(validationExpression);
+    if (responseContentType === 'text') {
+      validationCheck = `  'response matches pattern': (r) => new RegExp(${expr}).test(r.body),\n`;
+    } else if (responseContentType === 'json') {
+      validationCheck = `  'json path exists': (r) => { try { var d = JSON.parse(r.body); var parts = ${expr}.replace(/^\\$\\.?/, '').split('.'); var cur = d; for (var p of parts) { if (cur == null) return false; cur = cur[p]; } return cur !== undefined && cur !== null; } catch { return false; } },\n`;
+    } else if (responseContentType === 'xml') {
+      validationCheck = `  'xml contains expression': (r) => r.body.includes(${expr}),\n`;
+    }
+  }
 
   // Escape the run directory for use inside the script string
   const escapedDir  = runDir.replace(/\\/g, '/');
@@ -77,7 +90,7 @@ export default function () {
 
   check(res, {
     'status is 2xx': (r) => r.status >= 200 && r.status < 300,
-  });
+${validationCheck}  });
 
   sleep(${pause != null ? pause : 1});
 }

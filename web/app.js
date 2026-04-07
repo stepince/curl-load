@@ -4,6 +4,7 @@
 const API = '';
 
 let currentRunId = null;
+let currentRunMeta = null; // { id, project, users, duration } for grid rendering during polls
 let varCounter = 0;
 let pollInterval = null;
 let historyPollInterval = null;
@@ -47,21 +48,32 @@ async function startTest() {
     return;
   }
 
+  const responseContentType  = $('responseContentType').value;
+  const validationExpression = $('validationExpression').value.trim();
+
   if (!url) { alert('Please enter a URL.'); return; }
 
   $('runBtn').disabled = true;
   $('historyDetail').style.display = 'block';
-  $('detailMetrics').innerHTML = '';
   $('detailOutput').textContent = 'Starting…';
   $('dashboardLink').style.display = 'none';
   $('pdfLink').style.display = 'none';
   lastFinishedData = null;
+  renderDetailMetrics([
+    ['Project',  name || '—'],
+    ['Run ID',   '—'],
+    ['Started',  '—'],
+    ['Finished', '—'],
+    ['VUs',      users],
+    ['Duration', duration],
+    ['Status',   'starting…'],
+  ]);
 
   try {
     const resp = await fetch(`${API}/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, url, method, headers, body, users, duration, pause, variables: getVariableDefinitions() }),
+      body: JSON.stringify({ name, url, method, headers, body, users, duration, pause, variables: getVariableDefinitions(), responseContentType, validationExpression }),
     });
 
     if (!resp.ok) {
@@ -74,8 +86,17 @@ async function startTest() {
     selectedRunIds.clear();
     selectedRunIds.add(run.id);
 
-    setDetailUrl(name, url);
+    currentRunMeta = { id: run.id, project: name, users, duration };
     setStatus(run.status);
+    renderDetailMetrics([
+      ['Project',  name || '—'],
+      ['Run ID',   run.id],
+      ['Started',  '—'],
+      ['Finished', '—'],
+      ['VUs',      users],
+      ['Duration', duration],
+      ['Status',   run.status],
+    ]);
     $('stopBtn').style.display = 'inline-block';
     showLiveDashboardLink();
 
@@ -101,8 +122,20 @@ function startPolling() {
 
     try {
       const r = await fetch(`${API}/runs/${currentRunId}/status`);
-      const { status, startedAt } = await r.json();
+      const { status, startedAt, finishedAt } = await r.json();
       setStatus(status);
+
+      if (currentRunMeta) {
+        renderDetailMetrics([
+          ['Project',  currentRunMeta.project || '—'],
+          ['Run ID',   currentRunMeta.id],
+          ['Started',  startedAt  ? new Date(startedAt).toLocaleTimeString()  : '—'],
+          ['Finished', finishedAt ? new Date(finishedAt).toLocaleTimeString() : '—'],
+          ['VUs',      currentRunMeta.users],
+          ['Duration', currentRunMeta.duration],
+          ['Status',   status],
+        ]);
+      }
 
       if (['running', 'stopping'].includes(status)) {
         try {
@@ -141,6 +174,15 @@ async function loadOutput(status) {
         const elapsedMs = (run.startedAt && run.finishedAt)
           ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
         const dashboardReport = run.dashboardReport || null;
+        renderDetailMetrics([
+          ['Project',  run.config?.name || '—'],
+          ['Run ID',   run.id],
+          ['Started',  run.startedAt  ? new Date(run.startedAt).toLocaleTimeString()  : '—'],
+          ['Finished', run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString() : '—'],
+          ['VUs',      run.config?.users],
+          ['Duration', formatConfigDuration(run.config?.duration)],
+          ['Status',   run.status || status],
+        ]);
         lastFinishedData = { runId: currentRunId, data, elapsedMs, stdout, dashboardReport };
         renderOutput();
         return;
@@ -173,8 +215,17 @@ async function loadHistory() {
       populateForm(activeRun);
       $('historyDetail').style.display = 'block';
       $('compareDetail').style.display = 'none';
-      setDetailUrl(activeRun.config?.name, activeRun.config?.url);
       setStatus(activeRun.status);
+      currentRunMeta = { id: activeRun.id, project: activeRun.config?.name, users: activeRun.config?.users, duration: formatConfigDuration(activeRun.config?.duration) };
+      renderDetailMetrics([
+        ['Project',  activeRun.config?.name || '—'],
+        ['Run ID',   activeRun.id],
+        ['Started',  '—'],
+        ['Finished', '—'],
+        ['VUs',      activeRun.config?.users],
+        ['Duration', formatConfigDuration(activeRun.config?.duration)],
+        ['Status',   activeRun.status],
+      ]);
       $('runBtn').disabled = true;
       $('stopBtn').style.display = 'inline-block';
       $('detailOutput').textContent = 'Run in progress…';
@@ -323,46 +374,40 @@ async function selectRun(id) {
   $('detailOutput').textContent = 'Loading…';
   $('detailMetrics').innerHTML = '';
 
-  // Fetch run metadata
-  try {
-    const r = await fetch(`${API}/runs/${id}`);
-    const run = await r.json();
-    $('projectName').value = run.config?.name || '';
-    setDetailUrl(run.config?.name, run.config?.url);
-
-    // Show key config metrics
-    renderDetailMetrics([
-      ['VUs',      run.config?.users],
-      ['Duration', formatConfigDuration(run.config?.duration)],
-      ['Method',   run.config?.method],
-      ['Status',   run.status],
-      ['Started',  run.startedAt ? new Date(run.startedAt).toLocaleTimeString() : '—'],
-      ['Finished', run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString() : '—'],
-    ]);
-  } catch { /* ignore */ }
-
-  // Try summary + stdout, then stdout only
+  // Fetch run metadata + output
   const terminal = ['finished', 'stopped'];
   try {
-    const sr = await fetch(`${API}/runs/${id}/status`);
-    const { status } = await sr.json();
+    const [runR, sr] = await Promise.all([
+      fetch(`${API}/runs/${id}`),
+      fetch(`${API}/runs/${id}/status`),
+    ]);
+    const run = runR.ok ? await runR.json() : {};
+    $('projectName').value = run.config?.name || '';
+    renderDetailMetrics([
+      ['Project',  run.config?.name || '—'],
+      ['Run ID',   run.id],
+      ['Started',  run.startedAt  ? new Date(run.startedAt).toLocaleTimeString()  : '—'],
+      ['Finished', run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString() : '—'],
+      ['VUs',      run.config?.users],
+      ['Duration', formatConfigDuration(run.config?.duration)],
+      ['Status',   run.status],
+    ]);
+
+    const { status } = sr.ok ? await sr.json() : {};
 
     if (terminal.includes(status)) {
       try {
-        const [summaryR, runR, stdoutR] = await Promise.all([
+        const [summaryR, stdoutR] = await Promise.all([
           fetch(`${API}/runs/${id}/summary`),
-          fetch(`${API}/runs/${id}`),
           fetch(`${API}/runs/${id}/stdout`),
         ]);
         if (summaryR.ok) {
-          const data   = await summaryR.json();
-          const run    = runR.ok    ? await runR.json()    : {};
-          const stdout = stdoutR.ok ? await stdoutR.text() : null;
-          const elapsedMs = (run.startedAt && run.finishedAt)
+          const data        = await summaryR.json();
+          const stdout      = stdoutR.ok ? await stdoutR.text() : null;
+          const elapsedMs   = (run.startedAt && run.finishedAt)
             ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
-          renderDetailMetrics(summaryMetrics(data, elapsedMs), true);
           const dashboardReport = run.dashboardReport || null;
-          lastFinishedData = { runId: id, data, elapsedMs, stdout, dashboardReport };
+          lastFinishedData  = { runId: id, data, elapsedMs, stdout, dashboardReport };
           renderOutput();
           return;
         }
@@ -398,13 +443,13 @@ function summaryMetrics(data, elapsedMs = null) {
         : `${Math.floor(elapsedMs / 60000)}m ${((elapsedMs % 60000) / 1000).toFixed(0)}s`)
     : null;
   return [
-    ...(elapsed ? [['Elapsed', elapsed]] : []),
-    ['Total Requests', reqs.count],
-    ['Req/s',          reqs.rate?.toFixed(1)],
-    ['Avg Latency',    http.avg    ? `${http.avg.toFixed(0)} ms`       : '—'],
-    ['p95 Latency',    http['p(95)'] ? `${http['p(95)'].toFixed(0)} ms` : '—'],
-    ['p99 Latency',    http['p(99)'] ? `${http['p(99)'].toFixed(0)} ms` : '—'],
-    ['Error Rate',     errs.rate != null ? `${(errs.rate * 100).toFixed(2)} %` : '—'],
+    ...(elapsed                  ? [['Elapsed',    elapsed]]                                       : []),
+    ...(reqs.count   != null     ? [['Requests',   reqs.count]]                                   : []),
+    ...(reqs.rate    != null     ? [['Req/s',       reqs.rate.toFixed(1)]]                        : []),
+    ...(http.avg     != null     ? [['Avg Latency', `${http.avg.toFixed(0)} ms`]]                 : []),
+    ...(http['p(95)'] != null    ? [['p95 Latency', `${http['p(95)'].toFixed(0)} ms`]]            : []),
+    ...(http['p(99)'] != null    ? [['p99 Latency', `${http['p(99)'].toFixed(0)} ms`]]            : []),
+    ...(errs.rate    != null     ? [['Error Rate',  `${(errs.rate * 100).toFixed(2)} %`]]         : []),
   ];
 }
 
@@ -431,6 +476,28 @@ function formatConfigDuration(str) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return s === 0 ? `${m}m` : `${m}m ${s.toFixed(0)}s`;
+}
+
+// ─── Validation ──────────────────────────────────────────────────────────────
+
+function onResponseTypeChange() {
+  const type    = $('responseContentType').value;
+  const wrapper = $('validationWrapper');
+  const label   = $('validationLabel');
+  const input   = $('validationExpression');
+  const config = {
+    json: { label: 'JSONPath expression (e.g. $.data.id)', placeholder: '$.status' },
+    xml:  { label: 'XPath expression (e.g. //item/name)', placeholder: '//status' },
+    text: { label: 'Regex pattern (e.g. success)',         placeholder: 'success' },
+  };
+  if (type === '*' || !config[type]) {
+    wrapper.style.display = 'none';
+    input.value = '';
+  } else {
+    wrapper.style.display = 'block';
+    label.textContent    = config[type].label;
+    input.placeholder    = config[type].placeholder;
+  }
 }
 
 // ─── Variables ───────────────────────────────────────────────────────────────
@@ -494,11 +561,6 @@ function formatReport(data, elapsedMs = null) {
   return lines.join('\n');
 }
 
-function setDetailUrl(name, url = '') {
-  $('detailUrl').innerHTML = name
-    ? `<span style="font-size:0.88rem; font-weight:600; color:#e2e8f0; display:block; margin-bottom:0.2rem;">${name}</span><span>${url}</span>`
-    : url;
-}
 
 function showLiveDashboardLink() {
   const link = $('dashboardLink');

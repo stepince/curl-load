@@ -80,6 +80,8 @@ export function createRun(config) {
       users: config.users || 10,
       duration: config.duration || '30s',
       pause: config.pause ?? 1,
+      responseContentType:  config.responseContentType  || '*',
+      validationExpression: config.validationExpression || '',
     },
     dashboard: config.dashboard !== false,
     status: 'created',    // created → running → finished | failed | stopping → stopped

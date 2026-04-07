@@ -1569,10 +1569,12 @@
                     method:    parsed.method,
                     headers:   { ...parsed.headers || {}, ...getAllHeaders() },
                     body:      parsed.body ? (() => { try { return JSON.parse(parsed.body); } catch { return parsed.body; } })() : null,
-                    variables: getVariableDefinitions(),
-                    users:     peakUsers,
-                    duration:  `${durationSec}s`,
-                    pause:     parseFloat(document.getElementById('pause').value) || 0,
+                    variables:             getVariableDefinitions(),
+                    users:                 peakUsers,
+                    duration:              `${durationSec}s`,
+                    pause:                 parseFloat(document.getElementById('pause').value) || 0,
+                    responseContentType:   document.getElementById('responseContentType').value,
+                    validationExpression:  document.getElementById('validationExpression').value.trim(),
                 }),
             });
             if (!resp.ok) {
