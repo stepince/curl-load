@@ -1,4 +1,3 @@
-Try AI directly in your favorite apps … Use Gemini to generate drafts and refine content, plus get Gemini Pro with access to Google's next-gen AI
 # curl-load
 
 A developer tool that takes an HTTP request, converts it into a k6 load test, runs it, and exposes an API + UI to manage runs.
@@ -12,7 +11,6 @@ curl-load/
 ├── runner/     Node.js API — spawns k6, stores run state
 ├── web/        Dashboard UI (served by the runner)
 ├── public/     Workbench UI + documentation
-├── plugin/     CLI tool (node plugin/src/cli.js)
 └── docs/       Architecture notes
 ```
 
@@ -48,66 +46,13 @@ npm start
 
 The runner also serves the web UI at `http://localhost:3000`.
 
-### 2 — Open the UI
+### 3 — Open the UI
 
 | URL | Description |
 |-----|-------------|
 | `http://localhost:3000` | Dashboard — manage and compare past runs |
 | `http://localhost:3000/load-tester.html` | Workbench — full-featured test builder |
 | `http://localhost:3000/documentation.html` | Documentation |
-
-### 3 — Use the CLI
-
-```bash
-cd plugin
-npm install
-
-# Basic GET
-node src/cli.js run --url http://localhost:3000/health --users 5 --duration 10s
-
-# POST with headers and body
-node src/cli.js run \
-  --url http://localhost:3000/runs \
-  --method POST \
-  --header "Content-Type: application/json" \
-  --body '{"url":"http://example.com","users":2,"duration":"5s"}' \
-  --users 1 --duration 5s
-
-# Point at a different runner
-node src/cli.js run --url http://example.com --runner http://my-runner:3000
-```
-
-### 4 — Re-run a previous test by ID
-
-Use the `rerun` command to repeat any past run by its ID. The run's full configuration (URL, method, headers, body, variables, validation) is fetched from the runner and reused. Execution parameters can be overridden.
-
-```bash
-# Repeat with the same settings
-node src/cli.js rerun <runId> --runner http://my-runner:3000
-
-# Override virtual users and duration
-node src/cli.js rerun <runId> --users 50 --duration 60s --runner http://my-runner:3000
-```
-
-Output is JSON, written to stdout:
-
-```json
-{
-  "runId": "c3d4e5f6-...",
-  "status": "finished",
-  "metrics": {
-    "totalRequests": 1800,
-    "rps": 60.12,
-    "latencyAvg": 42.3,
-    "latencyP95": 98.1,
-    "latencyP99": 145.6,
-    "latencyMax": 312.0,
-    "errorRate": 0.002
-  }
-}
-```
-
-Progress messages (dots, status) go to stderr so they do not interfere with JSON parsing.
 
 ---
 
@@ -204,15 +149,7 @@ created → running → finished
 
 ---
 
-## Docker (runner)
-
-```bash
-cd runner
-docker build -t curl-load-runner .
-docker run -p 3000:3000 curl-load-runner
-```
-
-## Docker (remote)
+## Docker
 
 ```bash
 docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
@@ -224,7 +161,7 @@ The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history pers
 
 ## CI/CD integration
 
-Uses only `curl` and `jq` — no Node.js required in your pipeline. Configure a test once in the UI, store the Run ID, then replay it on every deploy.
+Uses only `curl` and `jq` — no additional tooling required. Configure a test once in the UI, store the Run ID, then replay it on every deploy.
 
 ### Workflow
 
