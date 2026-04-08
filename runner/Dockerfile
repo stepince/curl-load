@@ -51,11 +51,14 @@ done
 
 FROM node:22-alpine
 
-RUN apk add --no-cache curl bash \
+RUN apk add --no-cache curl bash chromium \
   && curl -L https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz \
   | tar -xz \
   && mv k6-v0.49.0-linux-amd64/k6 /usr/bin/k6 \
   && rm -rf k6-v0.49.0-linux-amd64
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 WORKDIR /app/runner
 

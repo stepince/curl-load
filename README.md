@@ -12,7 +12,7 @@ curl-load/
 ├── runner/     Node.js API — spawns k6, stores run state
 ├── web/        Dashboard UI (served by the runner)
 ├── public/     Workbench UI + documentation
-├── plugin/     CLI tool (npx curl-load)
+├── plugin/     CLI tool (node plugin/src/cli.js)
 └── docs/       Architecture notes
 ```
 
@@ -76,6 +76,38 @@ node src/cli.js run \
 # Point at a different runner
 node src/cli.js run --url http://example.com --runner http://my-runner:3000
 ```
+
+### 4 — Re-run a previous test by ID
+
+Use the `rerun` command to repeat any past run by its ID. The run's full configuration (URL, method, headers, body, variables, validation) is fetched from the runner and reused. Execution parameters can be overridden.
+
+```bash
+# Repeat with the same settings
+node src/cli.js rerun <runId> --runner http://my-runner:3000
+
+# Override virtual users and duration
+node src/cli.js rerun <runId> --users 50 --duration 60s --runner http://my-runner:3000
+```
+
+Output is JSON, written to stdout:
+
+```json
+{
+  "runId": "c3d4e5f6-...",
+  "status": "finished",
+  "metrics": {
+    "totalRequests": 1800,
+    "rps": 60.12,
+    "latencyAvg": 42.3,
+    "latencyP95": 98.1,
+    "latencyP99": 145.6,
+    "latencyMax": 312.0,
+    "errorRate": 0.002
+  }
+}
+```
+
+Progress messages (dots, status) go to stderr so they do not interfere with JSON parsing.
 
 ---
 
@@ -183,7 +215,96 @@ docker run -p 3000:3000 curl-load-runner
 ## Docker (remote)
 
 ```bash
-docker run -p 3000:3000 -p 5665:5665 curlload/curl-load-runner:latest
+docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
+```
+
+The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history persists across image updates. The same volume is reattached when you pull and restart with a new image.
+
+---
+
+## CI/CD integration
+
+Uses only `curl` and `jq` — no Node.js required in your pipeline. Configure a test once in the UI, store the Run ID, then replay it on every deploy.
+
+### Workflow
+
+1. Run a test in the UI — copy the **Run ID** from the dashboard
+2. Store it as a CI/CD environment variable (e.g. `BASELINE_RUN_ID`)
+3. Use the script below in your pipeline
+
+### Script
+
+```bash
+RUNNER=http://my-runner:3000
+
+# 1. Fetch config from the baseline run, override VUs
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 50')
+
+# 2. Start a new run
+NEW_ID=$(curl -s -X POST $RUNNER/runs \
+  -H "Content-Type: application/json" \
+  -d "$CONFIG" | jq -r '.id')
+
+echo "Run ID: $NEW_ID"
+
+# 3. Poll until finished
+while true; do
+  STATUS=$(curl -s $RUNNER/runs/$NEW_ID/status | jq -r '.status')
+  echo "Status: $STATUS"
+  [ "$STATUS" = "finished" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "stopped" ] && break
+  sleep 2
+done
+
+# 4. Print results
+curl -s $RUNNER/runs/$NEW_ID/summary | jq '{
+  totalRequests: .metrics.http_reqs.values.count,
+  rps:           .metrics.http_reqs.values.rate,
+  latencyAvg:    .metrics.http_req_duration.values.avg,
+  latencyP95:    .metrics.http_req_duration.values["p(95)"],
+  latencyP99:    .metrics.http_req_duration.values["p(99)"],
+  errorRate:     .metrics.http_req_failed.values.rate
+}'
+```
+
+### GitHub Actions example
+
+```yaml
+jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run load test
+        id: load_test
+        run: |
+          RUNNER=${{ vars.RUNNER_URL }}
+
+          CONFIG=$(curl -s $RUNNER/runs/${{ vars.BASELINE_RUN_ID }} | jq '.config | .users = 50')
+          NEW_ID=$(curl -s -X POST $RUNNER/runs \
+            -H "Content-Type: application/json" \
+            -d "$CONFIG" | jq -r '.id')
+
+          while true; do
+            STATUS=$(curl -s $RUNNER/runs/$NEW_ID/status | jq -r '.status')
+            [ "$STATUS" = "finished" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "stopped" ] && break
+            sleep 2
+          done
+
+          SUMMARY=$(curl -s $RUNNER/runs/$NEW_ID/summary)
+          echo "p95=$(echo $SUMMARY | jq '.metrics.http_req_duration.values["p(95)"]')" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" | jq '.metrics'
+
+      - name: Show p95 latency
+        run: echo "p95 latency = ${{ steps.load_test.outputs.p95 }} ms"
+```
+
+### Override execution parameters
+
+```bash
+# Smoke test
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 5 | .duration = "30s"')
+
+# Load test
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 100 | .duration = "5m"')
 ```
 
 ---

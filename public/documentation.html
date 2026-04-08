@@ -334,6 +334,95 @@ clothing</code></pre>
 </div>
 
 
+<div class="card">
+  <h2>CI/CD Integration</h2>
+  <p>Uses only <code>curl</code> and <code>jq</code> — no Node.js required in your pipeline. Configure a test once in the UI, store the Run ID, then replay it on every deploy.</p>
+
+  <hr class="divider">
+
+  <h3>Setup</h3>
+  <ol>
+    <li>Run a test in the Workbench and copy the <b>Run ID</b> from the dashboard</li>
+    <li>Store it as a CI/CD environment variable (e.g. <code>BASELINE_RUN_ID</code>)</li>
+    <li>Use the script below in your pipeline</li>
+  </ol>
+
+  <hr class="divider">
+
+  <h3>Script</h3>
+  <pre><code>RUNNER=http://my-runner:3000
+
+# 1. Fetch config from the baseline run, override VUs
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 50')
+
+# 2. Start a new run
+NEW_ID=$(curl -s -X POST $RUNNER/runs \
+  -H "Content-Type: application/json" \
+  -d "$CONFIG" | jq -r '.id')
+
+echo "Run ID: $NEW_ID"
+
+# 3. Poll until finished
+while true; do
+  STATUS=$(curl -s $RUNNER/runs/$NEW_ID/status | jq -r '.status')
+  echo "Status: $STATUS"
+  [ "$STATUS" = "finished" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "stopped" ] &amp;&amp; break
+  sleep 2
+done
+
+# 4. Print results
+curl -s $RUNNER/runs/$NEW_ID/summary | jq '{
+  totalRequests: .metrics.http_reqs.values.count,
+  rps:           .metrics.http_reqs.values.rate,
+  latencyAvg:    .metrics.http_req_duration.values.avg,
+  latencyP95:    .metrics.http_req_duration.values["p(95)"],
+  latencyP99:    .metrics.http_req_duration.values["p(99)"],
+  errorRate:     .metrics.http_req_failed.values.rate
+}'</code></pre>
+
+  <hr class="divider">
+
+  <h3>GitHub Actions example</h3>
+  <pre><code>jobs:
+  load-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run load test
+        id: load_test
+        run: |
+          RUNNER=${{ vars.RUNNER_URL }}
+
+          CONFIG=$(curl -s $RUNNER/runs/${{ vars.BASELINE_RUN_ID }} | jq '.config | .users = 50')
+          NEW_ID=$(curl -s -X POST $RUNNER/runs \
+            -H "Content-Type: application/json" \
+            -d "$CONFIG" | jq -r '.id')
+
+          while true; do
+            STATUS=$(curl -s $RUNNER/runs/$NEW_ID/status | jq -r '.status')
+            [ "$STATUS" = "finished" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "stopped" ] &amp;&amp; break
+            sleep 2
+          done
+
+          SUMMARY=$(curl -s $RUNNER/runs/$NEW_ID/summary)
+          echo "p95=$(echo $SUMMARY | jq '.metrics.http_req_duration.values["p(95)"]')" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" | jq '.metrics'
+
+      - name: Show p95 latency
+        run: echo "p95 latency = ${{ steps.load_test.outputs.p95 }} ms"</code></pre>
+
+  <hr class="divider">
+
+  <h3>Override execution parameters</h3>
+  <p>Use <code>jq</code> to override any config field before posting:</p>
+  <pre><code># Smoke test
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 5 | .duration = "30s"')
+
+# Load test
+CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 100 | .duration = "5m"')</code></pre>
+
+  <p class="tip">Tip: The runner persists run history across image updates using a Docker named volume, so your baseline Run ID stays valid after deployments.</p>
+</div>
+
 <div class="warning">
   ⚠️ <b>Safety:</b> This tool generates load. Be careful when running against production systems.
 </div>

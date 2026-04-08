@@ -69,6 +69,55 @@ program
     await pollUntilDone(opts.runner, runId);
   });
 
+program
+  .command('rerun <runId>')
+  .description('Re-execute a previous run by ID, optionally overriding execution parameters')
+  .option('--users <n>',      'Override number of virtual users')
+  .option('--duration <d>',   'Override test duration (k6 format, e.g. 30s)')
+  .option('--pause <n>',      'Override pause between requests (seconds)')
+  .option('--runner <url>',   'Runner API base URL', 'http://localhost:3000')
+  .action(async (runId, opts) => {
+    // Fetch original run config
+    let config;
+    try {
+      const r = await fetch(`${opts.runner}/runs/${runId}`);
+      if (!r.ok) throw new Error(`Run not found: ${runId}`);
+      const run = await r.json();
+      config = run.config;
+    } catch (err) {
+      console.error(`Failed to fetch run ${runId}: ${err.message}`);
+      process.exit(1);
+    }
+
+    // Apply overrides
+    if (opts.users)    config.users    = parseInt(opts.users, 10);
+    if (opts.duration) config.duration = opts.duration;
+    if (opts.pause)    config.pause    = parseFloat(opts.pause);
+
+    // Start new run
+    let newRunId;
+    try {
+      const r = await fetch(`${opts.runner}/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || r.statusText);
+      }
+      newRunId = (await r.json()).id;
+    } catch (err) {
+      console.error(`Failed to start run: ${err.message}`);
+      process.exit(1);
+    }
+
+    process.stderr.write(`Rerunning ${runId} → new run ${newRunId}\n`);
+    process.stderr.write(`VUs: ${config.users}  Duration: ${config.duration}\n`);
+
+    await pollUntilDone(opts.runner, newRunId, true);
+  });
+
 program.parse();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -90,15 +139,17 @@ function parseHeaders(headerArgs) {
 
 /**
  * Poll /runs/:id/status until finished | failed | stopped, then print summary.
+ * @param {boolean} jsonOutput - when true, write JSON to stdout; progress to stderr
  */
-async function pollUntilDone(runner, runId) {
+async function pollUntilDone(runner, runId, jsonOutput = false) {
   const TERMINAL = new Set(['finished', 'failed', 'stopped']);
+  const progress = jsonOutput ? process.stderr : process.stdout;
 
-  process.stdout.write('Running ');
+  progress.write('Running ');
 
   while (true) {
     await sleep(1500);
-    process.stdout.write('.');
+    progress.write('.');
 
     let status;
     try {
@@ -109,23 +160,32 @@ async function pollUntilDone(runner, runId) {
     }
 
     if (TERMINAL.has(status)) {
-      process.stdout.write(` ${status}\n\n`);
-      await printSummary(runner, runId, status);
+      progress.write(` ${status}\n\n`);
+      await printSummary(runner, runId, status, jsonOutput);
       return;
     }
   }
 }
 
-async function printSummary(runner, runId, status) {
+async function printSummary(runner, runId, status, jsonOutput = false) {
   if (status === 'finished' || status === 'stopped') {
     try {
       const r = await fetch(`${runner}/runs/${runId}/summary`);
       if (r.ok) {
         const data = await r.json();
-        printMetrics(data);
+        if (jsonOutput) {
+          console.log(JSON.stringify(buildJsonSummary(runId, status, data), null, 2));
+        } else {
+          printMetrics(data);
+        }
         return;
       }
     } catch { /* fall through */ }
+  }
+
+  if (jsonOutput) {
+    console.log(JSON.stringify({ runId, status, metrics: null }));
+    return;
   }
 
   // Fall back to raw stdout
@@ -138,6 +198,27 @@ async function printSummary(runner, runId, status) {
   } catch { /* fall through */ }
 
   console.log('No output available.');
+}
+
+function buildJsonSummary(runId, status, data) {
+  const metrics = data.metrics || {};
+  const http    = metrics.http_req_duration?.values || {};
+  const reqs    = metrics.http_reqs?.values || {};
+  const errors  = metrics.http_req_failed?.values || {};
+
+  return {
+    runId,
+    status,
+    metrics: {
+      totalRequests: reqs.count    ?? null,
+      rps:           reqs.rate     ?? null,
+      latencyAvg:    http.avg      ?? null,
+      latencyP95:    http['p(95)'] ?? null,
+      latencyP99:    http['p(99)'] ?? null,
+      latencyMax:    http.max      ?? null,
+      errorRate:     errors.rate   ?? null,
+    },
+  };
 }
 
 function printMetrics(data) {

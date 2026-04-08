@@ -20,10 +20,10 @@ build-no-cache:
 
 # ---- Run ----
 run:
-	docker run -p 3000:3000 -p 5665:5665 $(FULL_IMAGE):latest
+	docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs $(FULL_IMAGE):latest
 
 run-version:
-	docker run -p 3000:3000 -p 5665:5665 $(FULL_IMAGE):$(VERSION)
+	docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
 
 # ---- Docker Hub ----
 login:
@@ -48,7 +48,11 @@ dev:
 clean:
 	docker image prune -f
 
+# Removes containers and images — run data (volume) is preserved
 purge:
 	-docker ps -a --filter ancestor=$(FULL_IMAGE):latest --filter ancestor=$(FULL_IMAGE):$(VERSION) -q | xargs -r docker rm -f
 	-docker rmi -f $(FULL_IMAGE):$(VERSION) $(FULL_IMAGE):latest
-	docker image prune -f
+
+# Removes containers, images, AND all run data — cannot be undone
+reset: purge
+	-docker volume rm curl-load-runs

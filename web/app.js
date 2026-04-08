@@ -87,7 +87,6 @@ async function startTest() {
     selectedRunIds.add(run.id);
 
     currentRunMeta = { id: run.id, project: name, users, duration };
-    setStatus(run.status);
     renderDetailMetrics([
       ['Project',  name || '—'],
       ['Run ID',   run.id],
@@ -123,7 +122,6 @@ function startPolling() {
     try {
       const r = await fetch(`${API}/runs/${currentRunId}/status`);
       const { status, startedAt, finishedAt } = await r.json();
-      setStatus(status);
 
       if (currentRunMeta) {
         renderDetailMetrics([
@@ -215,7 +213,6 @@ async function loadHistory() {
       populateForm(activeRun);
       $('historyDetail').style.display = 'block';
       $('compareDetail').style.display = 'none';
-      setStatus(activeRun.status);
       currentRunMeta = { id: activeRun.id, project: activeRun.config?.name, users: activeRun.config?.users, duration: formatConfigDuration(activeRun.config?.duration) };
       renderDetailMetrics([
         ['Project',  activeRun.config?.name || '—'],
@@ -568,12 +565,6 @@ function showLiveDashboardLink() {
   link.style.display = 'inline';
 }
 
-function setStatus(status) {
-  const el = $('status');
-  el.textContent = status;
-  el.className = `status-badge status-${status}`;
-  el.style.display = 'inline-block';
-}
 
 function setOutputMode(mode) {
   outputMode = mode;
@@ -629,9 +620,9 @@ function renderOutput() {
       pdfLink.style.pointerEvents = 'none';
       let dotCount = 0;
       const dotTimer = setInterval(() => {
-        dotCount = (dotCount % 3) + 1;
-        pdfLink.textContent = 'Generating PDF' + '.'.repeat(dotCount);
-      }, 500);
+        dotCount = (dotCount % 5) + 1;
+        pdfLink.innerHTML = 'Generating PDF <span style="font-size:0.25em;letter-spacing:2px">' + '●'.repeat(dotCount) + '</span>';
+      }, 400);
       fetch(`/runs/${lastFinishedData.runId}/report.pdf`)
         .then(r => r.ok ? r.blob() : Promise.reject())
         .then(blob => {
@@ -646,7 +637,7 @@ function renderOutput() {
         .finally(() => {
           clearInterval(dotTimer);
           delete pdfLink.dataset.loading;
-          pdfLink.textContent = 'Download PDF ↓';
+          pdfLink.innerHTML = 'Download PDF ↓';
           pdfLink.style.color = '#94a3b8';
           pdfLink.style.pointerEvents = '';
         });
