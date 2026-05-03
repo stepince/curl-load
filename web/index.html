@@ -271,6 +271,10 @@
           <label for="pause">Pause (s)</label>
           <input id="pause" type="number" value="1" min="0" step="0.1" />
         </div>
+        <div>
+          <label for="timeout">Request Timeout (s)</label>
+          <input id="timeout" type="number" value="30" min="1" />
+        </div>
       </div>
     </div>
 
@@ -315,8 +319,15 @@
 
   <!-- Right column: run history -->
   <div id="historyPanel">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-      <h2 style="margin:0;">Past Runs</h2>
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem;">
+      <input type="checkbox" id="selectAllCheckbox" title="Select all runs"
+             onchange="selectAll(this.checked)"
+             style="width:14px; height:14px; cursor:pointer; flex-shrink:0;" />
+      <h2 style="margin:0; flex:1;">Past Runs</h2>
+      <button id="deleteSelectedBtn" onclick="deleteSelected()"
+              style="display:none; padding:0.3rem 0.8rem; font-size:0.8rem; background:#ef4444;">
+        Delete Selected
+      </button>
       <button id="refreshBtn" style="padding:0.3rem 0.8rem; font-size:0.8rem;">Refresh</button>
     </div>
 
