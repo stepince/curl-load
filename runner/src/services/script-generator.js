@@ -17,7 +17,7 @@
  * @returns {string} k6 script source code
  */
 export function generateScript(config, runDir) {
-  const { url, method, headers, body, variables, users, duration, pause, responseContentType, validationExpression } = config;
+  const { url, method, headers, body, variables, users, duration, pause, timeout, responseContentType, validationExpression } = config;
 
   // Serialise headers as a JS object literal inside the script
   const headersLiteral = JSON.stringify(headers || {}, null, 2);
@@ -86,7 +86,7 @@ export default function () {
   const url  = resolveTemplate(URL_TEMPLATE);
   const body = BODY_TEMPLATE !== null ? resolveTemplate(BODY_TEMPLATE) : null;
 
-  const res = http.request('${method}', url, body, { headers: HEADERS });
+  const res = http.request('${method}', url, body, { headers: HEADERS, timeout: '${timeout != null ? timeout : 30}s' });
 
   check(res, {
     'status is 2xx': (r) => r.status >= 200 && r.status < 300,

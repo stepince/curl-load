@@ -152,7 +152,7 @@ created → running → finished
 ## Docker
 
 ```bash
-docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
+docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
 ```
 
 The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history persists across image updates. The same volume is reattached when you pull and restart with a new image.

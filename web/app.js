@@ -28,6 +28,7 @@ async function startTest() {
   const users    = parseInt($('users').value, 10) || 10;
   const duration = $('duration').value.trim() || '30s';
   const pause    = parseFloat($('pause').value) || 0;
+  const timeout  = parseInt($('timeout').value, 10) || 30;
 
   let headers = {};
   let body    = null;
@@ -73,7 +74,7 @@ async function startTest() {
     const resp = await fetch(`${API}/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, url, method, headers, body, users, duration, pause, variables: getVariableDefinitions(), responseContentType, validationExpression }),
+      body: JSON.stringify({ name, url, method, headers, body, users, duration, pause, timeout, variables: getVariableDefinitions(), responseContentType, validationExpression }),
     });
 
     if (!resp.ok) {
@@ -202,6 +203,7 @@ async function loadHistory() {
     if (!r.ok) return;
     const runs = await r.json();
     renderHistory(runs);
+    updateBulkUI();
 
     // If there's a run in progress that we don't know about (started externally),
     // populate the form so the dashboard reflects what's running
@@ -239,6 +241,7 @@ function populateForm(run) {
   $('users').value       = c.users    ?? 10;
   $('duration').value    = c.duration || '30s';
   $('pause').value       = c.pause    ?? 1;
+  $('timeout').value     = c.timeout  ?? 30;
   $('headers').value     = c.headers && Object.keys(c.headers).length
     ? JSON.stringify(c.headers, null, 2) : '';
   $('body').value        = c.body
@@ -295,6 +298,8 @@ function handleCheckboxChange(id, checked) {
     el.classList.toggle('active', selectedRunIds.has(el.dataset.id));
   });
 
+  updateBulkUI();
+
   if (selectedRunIds.size === 0) {
     $('historyDetail').style.display = 'none';
     $('compareDetail').style.display = 'none';
@@ -305,6 +310,60 @@ function handleCheckboxChange(id, checked) {
     $('historyDetail').style.display = 'none';
     renderCompareDetail([...selectedRunIds]);
   }
+}
+
+function updateBulkUI() {
+  const total     = document.querySelectorAll('.run-checkbox').length;
+  const checked   = document.querySelectorAll('.run-checkbox:checked').length;
+  const selectAll = $('selectAllCheckbox');
+  const deleteBtn = $('deleteSelectedBtn');
+
+  if (selectAll) {
+    selectAll.checked       = total > 0 && checked === total;
+    selectAll.indeterminate = checked > 0 && checked < total;
+  }
+  if (deleteBtn) {
+    deleteBtn.style.display = checked > 0 ? 'inline-block' : 'none';
+    deleteBtn.textContent   = `Delete Selected (${checked})`;
+  }
+}
+
+function selectAll(checked) {
+  document.querySelectorAll('.run-checkbox').forEach(cb => {
+    cb.checked = checked;
+    handleCheckboxChange(cb.dataset.id, checked);
+  });
+}
+
+async function deleteSelected() {
+  const ids = [...selectedRunIds];
+  if (ids.length === 0) return;
+  if (!confirm(`Delete ${ids.length} run${ids.length > 1 ? 's' : ''}?`)) return;
+
+  for (const id of ids) {
+    try {
+      const sr = await fetch(`${API}/runs/${id}/status`);
+      const { status } = sr.ok ? await sr.json() : {};
+      const isActive = ['created', 'running', 'stopping'].includes(status);
+
+      if (isActive) {
+        await fetch(`${API}/runs/${id}/stop`, { method: 'POST' }).catch(() => {});
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 1000));
+          const pr = await fetch(`${API}/runs/${id}/status`);
+          const { status: s } = pr.ok ? await pr.json() : {};
+          if (['finished', 'failed', 'stopped'].includes(s)) break;
+        }
+      }
+      await fetch(`${API}/runs/${id}`, { method: 'DELETE' });
+      selectedRunIds.delete(id);
+    } catch { /* skip failed deletes */ }
+  }
+
+  currentRunId = null;
+  $('historyDetail').style.display = 'none';
+  $('compareDetail').style.display = 'none';
+  await loadHistory();
 }
 
 let _loadIntoFormId = null;

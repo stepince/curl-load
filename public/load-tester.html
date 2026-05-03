@@ -118,23 +118,6 @@
         .status-stopping { background: #431407; color: #fdba74; }
 
         /* Layout */
-        .settings-grid {
-            display: flex;
-            gap: 1.5rem;
-            margin-bottom: 0.5rem;
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-        .left-column, .right-column {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            min-width: 180px;
-        }
-        .left-column > div, .right-column > div {
-            display: flex;
-            flex-direction: column;
-        }
 
         /* Variables */
         #variables {
@@ -250,15 +233,30 @@
         </svg>
     </a>
 
-    <!-- Bug Report (RIGHT SIDE) -->
+    <!-- Contact + Bug Report (RIGHT SIDE) -->
+    <a href="mailto:support@curl-load.com"
+       target="_blank"
+       title="Contact support"
+       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:auto;
+          color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:500;"
+       onmouseover="this.style.opacity=0.8"
+       onmouseout="this.style.opacity=1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M2 7l10 7 10-7"/>
+        </svg>
+        Contact
+    </a>
+
     <a href="https://github.com/support-curl-load/curl-load-support/issues/new/choose"
        target="_blank"
        title="Report a bug or request a feature"
-       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:auto;
+       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;
           color:#ef4444; text-decoration:none; font-size:0.85rem; font-weight:500;"
        onmouseover="this.style.opacity=0.8"
        onmouseout="this.style.opacity=1">
-
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
              viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -336,36 +334,36 @@
 
 <!-- Settings -->
 <div class="card">
-    <div class="settings-grid">
-        <div class="left-column">
+    <div style="display:flex; flex-direction:column; gap:0.75rem;">
+        <div style="display:flex; gap:0.75rem; align-items:flex-end;">
             <div id="timeDurationWrapper">
                 <label for="duration">Duration (s)</label>
-                <input type="number" id="duration" value="300" min="1" style="margin:0;" />
+                <input type="number" id="duration" value="300" min="1" style="margin:0; width:200px;" />
             </div>
             <div id="iterationWrapper" style="display:none;">
                 <label for="iterations">Total iterations</label>
-                <input type="number" id="iterations" value="100" min="1" style="margin:0;" />
+                <input type="number" id="iterations" value="100" min="1" style="margin:0; width:200px;" />
             </div>
-            <div>
-                <label for="pause">Pause between requests (s)</label>
-                <input type="number" id="pause" value="1" min="0" style="margin:0;" />
-            </div>
-        </div>
-        <div class="right-column">
             <div>
                 <label for="durationType">Duration Type</label>
-                <select id="durationType" style="margin:0;">
+                <select id="durationType" style="margin:0; width:200px;">
                     <option value="time">Time (seconds)</option>
                     <option value="iteration">Iterations</option>
                 </select>
             </div>
+        </div>
+        <div style="display:flex; gap:0.75rem; align-items:flex-end;">
             <div>
                 <label for="users">Peak virtual users</label>
-                <input type="number" id="users" value="1" min="1" style="margin:0;" />
+                <input type="number" id="users" value="1" min="1" style="margin:0; width:200px;" />
+            </div>
+            <div>
+                <label for="pause">Pause between requests (s)</label>
+                <input type="number" id="pause" value="1" min="0" style="margin:0; width:200px;" />
             </div>
             <div>
                 <label for="ramp">Ramp-up period (s)</label>
-                <input type="number" id="ramp" value="30" min="0" style="margin:0;" />
+                <input type="number" id="ramp" value="30" min="0" style="margin:0; width:200px;" />
             </div>
         </div>
     </div>
@@ -516,8 +514,25 @@
         return projectName ? `${STORAGE_KEY}.${projectName}` : STORAGE_KEY;
     }
 
-    function normalizeCurl(curl) {
-        return curl.replace(/\\\n/g, ' ').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    function diagnoseError(e, targetUrl) {
+        const hints = [];
+        const isCrossOrigin = (() => {
+            try {
+                return new URL(targetUrl).origin !== window.location.origin;
+            } catch { return false; }
+        })();
+        const isMixedContent = window.location.protocol === 'https:' &&
+            targetUrl.startsWith('http:');
+
+        if (isMixedContent) {
+            hints.push('Mixed content: page is HTTPS but request URL is HTTP — browser blocks this.');
+        } else if (isCrossOrigin && /failed to fetch|networkerror|load failed/i.test(e.message)) {
+            hints.push('Likely CORS: cross-origin request was blocked by the browser.');
+            hints.push('The server must return Access-Control-Allow-Origin in its response headers.');
+            hints.push('Use Run Remote to bypass CORS — the runner makes requests server-side.');
+        }
+
+        return hints.length ? '\n  Hint: ' + hints.join('\n  Hint: ') : '';
     }
 
     function stripTrailingComma(jsonStr) {
@@ -528,27 +543,71 @@
         }
     }
 
-    function parseCurlCommand(curl) {
-        curl = normalizeCurl(curl);
-        const methodMatch = curl.match(/-X\s+(\w+)/i);
-        const urlMatch = curl.match(/(https?:\/\/[^\s']+)/i);
-        const headerMatches = [
-            ...curl.matchAll(/-H\s+'([^:]+):\s*([^']*?)'/gi),
-            ...curl.matchAll(/-H\s+"([^:]+):\s*([^"]*?)"/gi),
-        ];
-        const dataMatch = curl.match(/-d\s+'([\s\S]+?)'/i) || curl.match(/-d\s+"([\s\S]+?)"/i);
+    // Shell-style tokenizer: respects single quotes (literal), double quotes (backslash escapes),
+    // backslash-newline continuations, and unquoted tokens.
+    function tokenizeCurl(input) {
+        const tokens = [];
+        const s = input.replace(/\\\n/g, ' ');
+        let i = 0;
+        while (i < s.length) {
+            while (i < s.length && /\s/.test(s[i])) i++;
+            if (i >= s.length) break;
+            let token = '';
+            while (i < s.length && (token.length > 0 ? true : !/\s/.test(s[i]))) {
+                if (/\s/.test(s[i]) && token.length === 0) break;
+                if (s[i] === "'") {
+                    i++;
+                    while (i < s.length && s[i] !== "'") token += s[i++];
+                    i++;
+                } else if (s[i] === '"') {
+                    i++;
+                    while (i < s.length && s[i] !== '"') {
+                        if (s[i] === '\\' && i + 1 < s.length) { i++; token += s[i++]; }
+                        else token += s[i++];
+                    }
+                    i++;
+                } else if (s[i] === '\\' && i + 1 < s.length) {
+                    i++; token += s[i++];
+                } else if (/\s/.test(s[i])) {
+                    break;
+                } else {
+                    token += s[i++];
+                }
+            }
+            if (token.length > 0) tokens.push(token);
+        }
+        return tokens;
+    }
 
-        let method = methodMatch ? methodMatch[1].toUpperCase() : undefined;
-        if (!method && dataMatch) method = 'POST';
-        method = method || 'GET';
+    function parseCurlCommand(input) {
+        const tokens = tokenizeCurl(input);
+        let i = 0;
+        if (tokens[0]?.toLowerCase() === 'curl') i++;
 
-        const url = urlMatch ? urlMatch[1] : '';
+        let method, url, body;
         const headers = {};
-        headerMatches.forEach(match => {
-            headers[match[1]] = match[2];
-        });
-        const body = dataMatch ? stripTrailingComma(dataMatch[1]) : undefined;
-        return { method, url, headers, body };
+
+        while (i < tokens.length) {
+            const t = tokens[i];
+            if (t === '-X' || t === '--request') {
+                method = tokens[++i]?.toUpperCase();
+            } else if (t === '-H' || t === '--header') {
+                const h = tokens[++i] || '';
+                const colon = h.indexOf(':');
+                if (colon !== -1) headers[h.slice(0, colon).trim()] = h.slice(colon + 1).trim();
+            } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary') {
+                body = tokens[++i];
+            } else if (!t.startsWith('-') && !url && /^https?:\/\//i.test(t)) {
+                url = t;
+            }
+            i++;
+        }
+
+        if (!method && body) method = 'POST';
+        method = method || 'GET';
+        if (body) body = stripTrailingComma(body);
+
+        return { method, url: url || '', headers, body };
     }
 
     function cancelTest() {
@@ -893,7 +952,16 @@
                 latencies.push(duration);
                 latencyPoints.push({ t: Date.now() - startTime, v: duration });
 
-                appendResult(`User ${userId}: Error: ${e.message} (${duration}ms)`);
+                const headersStr = Object.entries(fetchOptions.headers || {})
+                    .map(([k, v]) => `    ${k}: ${v}`).join('\n');
+                appendResult(
+                    `User ${userId}: Error: ${e.message} (${duration}ms)` +
+                    diagnoseError(e, parsed.url) + '\n' +
+                    `  URL:     ${parsed.url}\n` +
+                    `  Method:  ${fetchOptions.method}\n` +
+                    `  Headers:\n${headersStr || '    (none)'}\n` +
+                    `  Body:    ${fetchOptions.body ?? '(none)'}`
+                );
                 drawLatencyChart(latencyPoints);
                 renderReport();
             }
@@ -998,7 +1066,16 @@
             `;
         } catch (e) {
             const duration = Math.round(performance.now() - start);
-            appendResult(`Error: ${e.message} (${duration}ms)`);
+            const headersStr = Object.entries(fetchOptions.headers || {})
+                .map(([k, v]) => `    ${k}: ${v}`).join('\n');
+            appendResult(
+                `Error: ${e.message} (${duration}ms)` +
+                diagnoseError(e, parsed.url) + '\n' +
+                `  URL:     ${parsed.url}\n` +
+                `  Method:  ${fetchOptions.method}\n` +
+                `  Headers:\n${headersStr || '    (none)'}\n` +
+                `  Body:    ${fetchOptions.body ?? '(none)'}`
+            );
             drawLatencyChart([{ t: 0, v: duration }]);
             document.getElementById('status').textContent = 'Failed';
             document.getElementById('report').innerHTML = `
@@ -1008,7 +1085,6 @@
                 <p><strong>Latency:</strong> ${duration} ms</p>
                 <p><strong>Status Code:</strong> n/a</p>
             `;
-
         }
     }
 

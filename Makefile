@@ -20,10 +20,10 @@ build-no-cache:
 
 # ---- Run ----
 run:
-	docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs $(FULL_IMAGE):latest
+	docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs $(FULL_IMAGE):latest
 
 run-version:
-	docker run -p 3000:3000 -p 5665:5665 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
+	docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
 
 # ---- Docker Hub ----
 login:

@@ -16,6 +16,38 @@ console.log(`[k6-runner] using binary: ${K6_BIN}`);
 // Map of runId → ChildProcess, so we can send SIGINT on stop
 const processes = new Map();
 
+// Parse a k6 duration string (e.g. "1m30s", "300s", "2h") into milliseconds.
+function parseDurationMs(d) {
+  let ms = 0;
+  const matches = String(d).matchAll(/(\d+)(h|m|s)/g);
+  for (const [, val, unit] of matches) {
+    if (unit === 'h') ms += parseInt(val) * 3600000;
+    else if (unit === 'm') ms += parseInt(val) * 60000;
+    else if (unit === 's') ms += parseInt(val) * 1000;
+  }
+  return ms || 60000; // fallback 60s if unparseable
+}
+
+// ─── Dashboard port pool ───────────────────────────────────────────────────────
+const DASHBOARD_PORT_START = parseInt(process.env.K6_DASHBOARD_PORT_START || '5665', 10);
+const DASHBOARD_PORT_COUNT = parseInt(process.env.K6_DASHBOARD_PORT_COUNT || '20',   10);
+const portsInUse = new Set();
+
+function allocateDashboardPort() {
+  for (let i = 0; i < DASHBOARD_PORT_COUNT; i++) {
+    const port = DASHBOARD_PORT_START + i;
+    if (!portsInUse.has(port)) {
+      portsInUse.add(port);
+      return port;
+    }
+  }
+  return null; // pool exhausted
+}
+
+function releaseDashboardPort(port) {
+  if (port != null) portsInUse.delete(port);
+}
+
 /**
  * Starts a k6 process for the given run.
  * Writes the generated script to {run.dir}/script.js then spawns k6.
@@ -53,20 +85,44 @@ export async function startRun(run) {
 
   const dashboardExport = path.join(dir, 'dashboard.html');
   const k6Args = ['run'];
+
+  let dashboardPort = null;
   if (run.dashboard) {
-    k6Args.push('--out', `web-dashboard=export=${dashboardExport}`);
+    dashboardPort = allocateDashboardPort();
+    if (dashboardPort) {
+      k6Args.push('--out', `web-dashboard=export=${dashboardExport}`);
+      run.dashboardPort = dashboardPort;
+    } else {
+      console.warn(`[run ${id}] no dashboard ports available — starting without live dashboard`);
+    }
   }
+
   // Stream raw metric data points so we can compute live stats during the run
   k6Args.push('--out', `json=${path.join(dir, 'metrics-stream.json')}`);
   k6Args.push(scriptPath);
 
   const k6 = spawn(K6_BIN, k6Args, {
     stdio: ['ignore', 'pipe', 'pipe'],
-    // Bind dashboard to all interfaces so remote browsers can reach it
-    env: { ...process.env, K6_WEB_DASHBOARD_HOST: '0.0.0.0' },
+    env: {
+      ...process.env,
+      K6_WEB_DASHBOARD_HOST: '0.0.0.0',
+      ...(dashboardPort ? { K6_WEB_DASHBOARD_PORT: String(dashboardPort) } : {}),
+    },
   });
 
   processes.set(id, k6);
+
+  // Watchdog — force-kill k6 if it doesn't exit within duration + gracefulStop + 30s buffer
+  const GRACEFUL_STOP_MS = 5000;
+  const BUFFER_MS        = 30000;
+  const watchdogMs = parseDurationMs(config.duration) + GRACEFUL_STOP_MS + BUFFER_MS;
+  const watchdog = setTimeout(() => {
+    if (processes.has(id)) {
+      console.warn(`[run ${id}] watchdog triggered after ${watchdogMs}ms — force killing k6`);
+      k6.kill('SIGKILL');
+      updateStatus(id, 'failed', { exitCode: null });
+    }
+  }, watchdogMs);
 
   // Stream stdout+stderr to stdout-live.txt as it arrives so the UI can poll it
   // during the run. stdout.txt is reserved for handleSummary's structured output on
@@ -80,15 +136,19 @@ export async function startRun(run) {
   k6.on('error', (err) => {
     // k6 binary not found or similar OS error
     console.error(`[run ${id}] spawn error:`, err.message);
+    clearTimeout(watchdog);
     dirWatcher.close();
     liveStream.end();
+    releaseDashboardPort(dashboardPort);
     updateStatus(id, 'failed', { exitCode: null });
     processes.delete(id);
   });
 
   k6.on('close', async (code, signal) => {
+    clearTimeout(watchdog);
     dirWatcher.close();
     liveStream.end();
+    releaseDashboardPort(dashboardPort);
     processes.delete(id);
 
     const currentRun = getRun(id);
