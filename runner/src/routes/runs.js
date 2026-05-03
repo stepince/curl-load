@@ -106,6 +106,7 @@ runsRouter.get('/:id/metrics', async (req, res) => {
     const avg = durations.length ? durations.reduce((s, v) => s + v, 0) / durations.length : null;
     const max = durations.length ? durations[durations.length - 1] : null;
     const p95 = durations.length ? durations[Math.floor(durations.length * 0.95)] : null;
+    const p99 = durations.length ? durations[Math.floor(durations.length * 0.99)] : null;
 
     // Build 1-second buckets relative to the first data point
     const timeseries = [];
@@ -127,6 +128,7 @@ runsRouter.get('/:id/metrics', async (req, res) => {
       requests:   reqCount,
       avg:        avg  != null ? avg.toFixed(2)  : null,
       p95:        p95  != null ? p95.toFixed(2)  : null,
+      p99:        p99  != null ? p99.toFixed(2)  : null,
       max:        max  != null ? max.toFixed(2)  : null,
       errorRate:  reqCount > 0 ? ((failCount / reqCount) * 100).toFixed(2) : '0.00',
       timeseries,

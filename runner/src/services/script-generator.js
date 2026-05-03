@@ -59,6 +59,7 @@ export const options = {
   vus: ${users},
   duration: '${duration}',
   gracefulStop: '5s',
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
 };
 
 const HEADERS      = ${headersLiteral};

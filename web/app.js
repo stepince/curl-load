@@ -529,6 +529,7 @@ function summaryMetrics(data, elapsedMs = null) {
     ...(http.avg     != null     ? [['Avg Latency', `${http.avg.toFixed(0)} ms`]]                 : []),
     ...(http['p(95)'] != null    ? [['p95 Latency', `${http['p(95)'].toFixed(0)} ms`]]            : []),
     ...(http['p(99)'] != null    ? [['p99 Latency', `${http['p(99)'].toFixed(0)} ms`]]            : []),
+    ...(http.max      != null    ? [['Max Latency', `${http.max.toFixed(0)} ms`]]                 : []),
     ...(errs.rate    != null     ? [['Error Rate',  `${(errs.rate * 100).toFixed(2)} %`]]         : []),
   ];
 }
@@ -764,6 +765,7 @@ function formatLiveMetrics(m, elapsedSec) {
     `Req/s          : ${rps}`,
     `Latency avg    : ${m.avg  != null ? m.avg  + ' ms' : '—'}`,
     `Latency p95    : ${m.p95  != null ? m.p95  + ' ms' : '—'}`,
+    `Latency p99    : ${m.p99  != null ? m.p99  + ' ms' : '—'}`,
     `Latency max    : ${m.max  != null ? m.max  + ' ms' : '—'}`,
     `Error rate     : ${m.errorRate != null ? m.errorRate + ' %' : '—'}`,
   ].join('\n');

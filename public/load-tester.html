@@ -881,6 +881,7 @@
             const max = latencies.length ? Math.max(...latencies) : 0;
             const sorted = [...latencies].sort((a, b) => a - b);
             const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
+            const p99 = sorted.length ? sorted[Math.floor(sorted.length * 0.99)] : 0;
             const elapsedSec = (Date.now() - startTime) / 1000;
             const rps = totalRequests > 0 ? (totalRequests / elapsedSec).toFixed(1) : 0;
             const elapsed = elapsedSec < 60
@@ -889,7 +890,7 @@
             document.getElementById('report').innerHTML = `
                 <p><strong>Elapsed:</strong> ${elapsed} &nbsp; <strong>Total Requests:</strong> ${totalRequests} &nbsp; <strong>RPS:</strong> ${rps}</p>
                 <p><strong>Successful:</strong> ${successfulRequests} &nbsp; <strong>Failed:</strong> ${failedRequests}${validationFailures > 0 ? ` &nbsp; <strong>Validation Failures:</strong> ${validationFailures}` : ''}</p>
-                <p><strong>Avg:</strong> ${avg} ms &nbsp; <strong>Min:</strong> ${min} ms &nbsp; <strong>Max:</strong> ${max} ms &nbsp; <strong>p95:</strong> ${p95} ms</p>
+                <p><strong>Avg:</strong> ${avg} ms &nbsp; <strong>Min:</strong> ${min} ms &nbsp; <strong>Max:</strong> ${max} ms &nbsp; <strong>p95:</strong> ${p95} ms &nbsp; <strong>p99:</strong> ${p99} ms</p>
                 <p><strong>Status Codes:</strong> ${Object.entries(statusCounts).map(([code, count]) => `${code}: ${count}`).join(' &nbsp; ')}</p>
             `;
         };
@@ -1722,6 +1723,7 @@
             <p><strong>Req/s:</strong> ${rps}</p>
             <p><strong>Avg Latency:</strong> ${m.avg != null ? m.avg + ' ms' : '—'}</p>
             <p><strong>p95 Latency:</strong> ${m.p95 != null ? m.p95 + ' ms' : '—'}</p>
+            <p><strong>p99 Latency:</strong> ${m.p99 != null ? m.p99 + ' ms' : '—'}</p>
             <p><strong>Max Latency:</strong> ${m.max != null ? m.max + ' ms' : '—'}</p>
             <p><strong>Error Rate:</strong> ${m.errorRate != null ? m.errorRate + ' %' : '—'}</p>
         `;
