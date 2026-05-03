@@ -12,6 +12,7 @@ let outputMode = 'text';
 let lastFinishedData = null;
 let outputCollapsed = true;
 const selectedRunIds = new Set();
+const runStatusMap   = new Map(); // runId → status, kept current after each renderHistory
 
 const $ = (id) => document.getElementById(id);
 
@@ -263,6 +264,8 @@ function renderHistory(runs) {
     return;
   }
 
+  runs.forEach(r => runStatusMap.set(r.id, r.status));
+
   list.innerHTML = runs.map((run) => {
     const name    = run.config?.name || '';
     const url     = run.config?.url  || '—';
@@ -317,6 +320,7 @@ function updateBulkUI() {
   const checked   = document.querySelectorAll('.run-checkbox:checked').length;
   const selectAll = $('selectAllCheckbox');
   const deleteBtn = $('deleteSelectedBtn');
+  const stopBtn   = $('stopSelectedBtn');
 
   if (selectAll) {
     selectAll.checked       = total > 0 && checked === total;
@@ -325,6 +329,13 @@ function updateBulkUI() {
   if (deleteBtn) {
     deleteBtn.style.display = checked > 0 ? 'inline-block' : 'none';
     deleteBtn.textContent   = `Delete Selected (${checked})`;
+  }
+  if (stopBtn) {
+    const activeCount = [...selectedRunIds].filter(id =>
+      ['created', 'running', 'stopping'].includes(runStatusMap.get(id))
+    ).length;
+    stopBtn.style.display = activeCount > 0 ? 'inline-block' : 'none';
+    stopBtn.textContent   = `Stop Selected (${activeCount})`;
   }
 }
 
@@ -363,6 +374,19 @@ async function deleteSelected() {
   currentRunId = null;
   $('historyDetail').style.display = 'none';
   $('compareDetail').style.display = 'none';
+  await loadHistory();
+}
+
+async function stopSelected() {
+  const activeIds = [...selectedRunIds].filter(id =>
+    ['created', 'running', 'stopping'].includes(runStatusMap.get(id))
+  );
+  if (activeIds.length === 0) return;
+  if (!confirm(`Stop ${activeIds.length} running test${activeIds.length > 1 ? 's' : ''}?`)) return;
+
+  await Promise.all(activeIds.map(id =>
+    fetch(`${API}/runs/${id}/stop`, { method: 'POST' }).catch(() => {})
+  ));
   await loadHistory();
 }
 
@@ -836,6 +860,11 @@ async function deleteRun(id) {
     }
     selectedRunIds.delete(id);
     if (currentRunId === id) currentRunId = null;
+
+    // Remove the compare card immediately without waiting for re-fetch
+    const card = $('compareGrid')?.querySelector(`[data-id="${id}"]`);
+    if (card) card.remove();
+
     if (selectedRunIds.size === 0) {
       $('historyDetail').style.display = 'none';
       $('compareDetail').style.display = 'none';
@@ -843,7 +872,7 @@ async function deleteRun(id) {
       $('compareDetail').style.display = 'none';
       selectRun([...selectedRunIds][0]);
     } else {
-      renderCompareDetail([...selectedRunIds]);
+      $('compareDetail').style.display = 'block';
     }
     await loadHistory();
   } catch (err) {
