@@ -287,7 +287,11 @@ function renderHistory(runs) {
           <div class="run-row-url" title="${url}">${url}</div>
         </div>
         <span class="run-row-meta run-row-label" onclick="focusRun('${run.id}')">${vus}vu · ${dur}<br>${timeStr}</span>
-        <button title="${['created','running','stopping'].includes(run.status) ? 'Stop and delete run' : 'Delete run'}" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"
+        ${['created','running','stopping'].includes(run.status)
+          ? `<button title="Stop run" style="background:none; border:none; color:#f59e0b; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"
+                onclick="stopRun('${run.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="8.3,3 15.7,3 21,8.3 21,15.7 15.7,21 8.3,21 3,15.7 3,8.3"/></svg></button>`
+          : `<span style="display:inline-block; width:26px; flex-shrink:0;"></span>`}
+        <button title="Delete run" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"
             onclick="deleteRun('${run.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
       </li>`;
   }).join('');
@@ -832,6 +836,11 @@ function renderCompareCard({ id, run, status, summaryData, elapsedMs }) {
       </div>
       ${metricsHtml}
     </div>`;
+}
+
+async function stopRun(id) {
+  await fetch(`${API}/runs/${id}/stop`, { method: 'POST' }).catch(() => {});
+  loadHistory();
 }
 
 async function deleteRun(id) {

@@ -105,8 +105,8 @@ runsRouter.get('/:id/metrics', async (req, res) => {
     durations.sort((a, b) => a - b);
     const avg = durations.length ? durations.reduce((s, v) => s + v, 0) / durations.length : null;
     const max = durations.length ? durations[durations.length - 1] : null;
-    const p95 = durations.length ? durations[Math.floor(durations.length * 0.95)] : null;
-    const p99 = durations.length ? durations[Math.floor(durations.length * 0.99)] : null;
+    const p95 = durations.length ? durations[Math.floor((durations.length - 1) * 0.95)] : null;
+    const p99 = durations.length ? durations[Math.floor((durations.length - 1) * 0.99)] : null;
 
     // Build 1-second buckets relative to the first data point
     const timeseries = [];

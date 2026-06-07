@@ -149,6 +149,57 @@
 <h1>curl-load Documentation</h1>
 
 <div class="card">
+  <h2>Installation &amp; Setup</h2>
+  <p>No installation required. curl-load is available as a pre-built Docker image — just run it.</p>
+
+  <hr class="divider">
+
+  <h3>Prerequisites</h3>
+  <ul>
+    <li><a href="https://docs.docker.com/get-docker/" style="color:#7dd3fc;">Docker</a> installed and running</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>1. Start the container</h3>
+  <pre><code>docker run -d --name curl-load \
+  -p 3000:3000 -p 5665-5684:5665-5684 \
+  -v curl-load-runs:/app/runs \
+  curlload/curl-load-runner:latest</code></pre>
+
+  <ul>
+    <li><code>-d</code> — run in the background</li>
+    <li><code>-p 3000:3000</code> — dashboard &amp; API</li>
+    <li><code>-p 5665-5684:5665-5684</code> — k6 live dashboard ports</li>
+    <li><code>-v curl-load-runs:/app/runs</code> — persist run history across restarts</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>2. Open the dashboard</h3>
+  <table>
+    <tr><th>Interface</th><th>URL</th></tr>
+    <tr><td>Dashboard</td><td>http://localhost:3000/</td></tr>
+    <tr><td>Workbench</td><td>http://localhost:3000/load-tester.html</td></tr>
+    <tr><td>k6 live dashboard</td><td>http://localhost:5665/</td></tr>
+  </table>
+
+  <hr class="divider">
+
+  <h3>Managing the container</h3>
+  <pre><code># Stop
+docker stop curl-load
+
+# Start again
+docker start curl-load
+
+# View logs
+docker logs curl-load</code></pre>
+
+  <p class="tip">Tip: Run history is stored in the <code>curl-load-runs</code> Docker volume and is preserved when you stop, restart, or upgrade the container.</p>
+</div>
+
+<div class="card">
   <h2>🚀 Getting Started</h2>
   <p>Turn any curl command into a load test in seconds.</p>
 
