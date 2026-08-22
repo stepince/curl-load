@@ -127,6 +127,19 @@ export function getRun(id) {
 }
 
 /**
+ * Return the dashboard port of any currently-running run that has one.
+ * Used to proxy k6 dashboard absolute paths (/ui/*) to the right port.
+ */
+export function getActiveDashboardPort() {
+  for (const run of runs.values()) {
+    if (['running', 'stopping'].includes(run.status) && run.dashboardPort) {
+      return run.dashboardPort;
+    }
+  }
+  return null;
+}
+
+/**
  * List all runs (newest first).
  */
 export function listRuns() {

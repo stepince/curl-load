@@ -187,14 +187,6 @@
         }
 
         /* Remote form */
-        #remoteForm {
-            display: none;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 0.75rem 1rem;
-            margin-top: 0.5rem;
-            background: #0f1117;
-        }
         .remote-form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
         .remote-form-row label { display: inline-block; white-space: nowrap; margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
         .remote-form-row input { margin-bottom: 0; }
@@ -214,11 +206,12 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="jsonpath-plus.min.js"></script>
 </head>
-<body>
+<body onload="window.name='curl-load-workbench'">
 <h1 style="display:flex; align-items:center;">
     <span>curl-load workbench</span>
+    <a href="#" onclick="window.open('/','curl-load-dashboard'); return false;"
+       style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load dashboard →</a>
 
     <!-- Documentation -->
     <a href="documentation.html" target="_blank" title="Documentation"
@@ -409,18 +402,14 @@
 
 <!-- Actions -->
 <div class="card" style="padding:0.85rem 1.25rem;">
+    <div class="remote-form-row" style="margin-bottom:0.75rem;">
+        <label for="remoteUrl">Runner URL:</label>
+        <input type="text" id="remoteUrl" placeholder="http://localhost:3000" style="flex:1; margin:0;" />
+    </div>
     <button id="runSingleBtn" onclick="runSingleTest()">Run Single</button>
-    <button id="runTestBtn" onclick="runTest()">Run Test</button>
-    <button id="remoteToggleBtn" onclick="toggleRemoteForm()">Run Remote ▼</button>
+    <button id="runTestBtn" onclick="executeRemoteTest()">Run Test</button>
     <button onclick="cancelTest()" style="background:#ef4444;">Stop</button>
     <button onclick="resetForm()" style="background:#475569;">Reset</button>
-    <div id="remoteForm">
-        <div class="remote-form-row" style="margin-top:0.75rem;">
-            <label for="remoteUrl">Runner URL:</label>
-            <input type="text" id="remoteUrl" placeholder="http://localhost:3000" style="flex:1; margin:0;" />
-            <button onclick="executeRemoteTest()" style="margin:0;">Execute</button>
-        </div>
-    </div>
 </div>
 
 <!-- Status + Results -->
@@ -512,27 +501,6 @@
         return projectName ? `${STORAGE_KEY}.${projectName}` : STORAGE_KEY;
     }
 
-    function diagnoseError(e, targetUrl) {
-        const hints = [];
-        const isCrossOrigin = (() => {
-            try {
-                return new URL(targetUrl).origin !== window.location.origin;
-            } catch { return false; }
-        })();
-        const isMixedContent = window.location.protocol === 'https:' &&
-            targetUrl.startsWith('http:');
-
-        if (isMixedContent) {
-            hints.push('Mixed content: page is HTTPS but request URL is HTTP — browser blocks this.');
-        } else if (isCrossOrigin && /failed to fetch|networkerror|load failed/i.test(e.message)) {
-            hints.push('Likely CORS: cross-origin request was blocked by the browser.');
-            hints.push('The server must return Access-Control-Allow-Origin in its response headers.');
-            hints.push('Use Run Remote to bypass CORS — the runner makes requests server-side.');
-        }
-
-        return hints.length ? '\n  Hint: ' + hints.join('\n  Hint: ') : '';
-    }
-
     function stripTrailingComma(jsonStr) {
         try {
             return jsonStr.replace(/,\s*([}\]])/g, '$1');
@@ -608,24 +576,13 @@
         return { method, url: url || '', headers, body };
     }
 
-    function collapseRemoteForm() {
-        const form = document.getElementById('remoteForm');
-        const btn  = document.getElementById('remoteToggleBtn');
-        if (form.style.display !== 'none') {
-            form.style.display = 'none';
-            btn.textContent = 'Run Remote Test ▼';
-            saveFormValues();
-        }
-    }
-
     function setRunState(mode) {
         const singleBtn = document.getElementById('runSingleBtn');
         const testBtn   = document.getElementById('runTestBtn');
         singleBtn.textContent = mode === 'single' ? 'Running Single…' : 'Run Single';
-        testBtn.textContent   = mode === 'test'   ? 'Running Test…'   : 'Run Test';
+        testBtn.textContent   = mode === 'test'   ? 'Running Test…' : 'Run Test';
         singleBtn.disabled    = !!mode;
         testBtn.disabled      = !!mode;
-        if (mode) collapseRemoteForm();
     }
 
     function cancelTest() {
@@ -794,8 +751,7 @@
                     multiline: valuesInput.tagName === 'TEXTAREA'
                 };
             }),
-            remoteUrl: document.getElementById('remoteUrl').value,
-            remoteExpanded: document.getElementById('remoteForm').style.display !== 'none'
+            remoteUrl: document.getElementById('remoteUrl').value
         };
         localStorage.setItem(getStorageKey(), JSON.stringify(formData));
     }
@@ -818,15 +774,6 @@
         onResponseTypeChange();
 
         document.getElementById('remoteUrl').value = formData.remoteUrl || formData.remoteHost && `http://${formData.remoteHost}:${formData.remotePort || '3000'}` || '';
-        const remoteForm = document.getElementById('remoteForm');
-        const remoteBtn = document.getElementById('remoteToggleBtn');
-        if (formData.remoteExpanded) {
-            remoteForm.style.display = 'block';
-            remoteBtn.textContent = 'Run Remote Test ▲';
-        } else {
-            remoteForm.style.display = 'none';
-            remoteBtn.textContent = 'Run Remote Test ▼';
-        }
 
         document.getElementById('authType').value     = formData.authType     || 'none';
         document.getElementById('authToken').value    = formData.authToken    || '';
@@ -860,256 +807,80 @@
             document.getElementById('variables').appendChild(div);
         });
     }
-    async function runTest() {
-        saveFormValues();
-        cancelled = false;
-        setRunState('test');
-        document.getElementById('status').textContent = 'Running';
-        document.getElementById('report').innerHTML = '';
-        document.getElementById('remoteDashboardLink').style.display = 'none';
-
-        const curlTextRaw = document.getElementById('curlInput').value;
-        const durationType = document.getElementById('durationType').value;
-        const durationSec = parseInt(document.getElementById('duration').value);
-        const maxIterations = parseInt(document.getElementById('iterations').value);
-        const pauseSec = parseInt(document.getElementById('pause').value);
-        const peakUsers = parseInt(document.getElementById('users').value);
-        const rampUpSec = parseInt(document.getElementById('ramp').value);
-        const resultsOutput = document.getElementById('results');
-        const variableDefs = getVariableDefinitions();
-        resultsOutput.textContent = 'Running...\n';
-
-        let totalRequests = 0;
-        let successfulRequests = 0;
-        let failedRequests = 0;
-        let validationFailures = 0;
-        let latencies = [];
-        let latencyPoints = []; // {t: ms since test start, v: duration ms}
-        let statusCounts = {};
-
-        const appendResult = (line) => {
-            resultsOutput.textContent += line + '\n';
-            resultsOutput.scrollTop = resultsOutput.scrollHeight;
-        };
-
-        const renderReport = () => {
-            const avg = latencies.length ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0;
-            const min = latencies.length ? Math.min(...latencies) : 0;
-            const max = latencies.length ? Math.max(...latencies) : 0;
-            const sorted = [...latencies].sort((a, b) => a - b);
-            const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
-            const p99 = sorted.length ? sorted[Math.floor(sorted.length * 0.99)] : 0;
-            const elapsedSec = (Date.now() - startTime) / 1000;
-            const rps = totalRequests > 0 ? (totalRequests / elapsedSec).toFixed(1) : 0;
-            const elapsed = elapsedSec < 60
-                ? `${elapsedSec.toFixed(1)}s`
-                : `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toFixed(0)}s`;
-            document.getElementById('report').innerHTML = `
-                <p><strong>Elapsed:</strong> ${elapsed} &nbsp; <strong>Total Requests:</strong> ${totalRequests} &nbsp; <strong>RPS:</strong> ${rps}</p>
-                <p><strong>Successful:</strong> ${successfulRequests} &nbsp; <strong>Failed:</strong> ${failedRequests}${validationFailures > 0 ? ` &nbsp; <strong>Validation Failures:</strong> ${validationFailures}` : ''}</p>
-                <p><strong>Avg:</strong> ${avg} ms &nbsp; <strong>Min:</strong> ${min} ms &nbsp; <strong>Max:</strong> ${max} ms &nbsp; <strong>p95:</strong> ${p95} ms &nbsp; <strong>p99:</strong> ${p99} ms</p>
-                <p><strong>Status Codes:</strong> ${Object.entries(statusCounts).map(([code, count]) => `${code}: ${count}`).join(' &nbsp; ')}</p>
-            `;
-        };
-
-        const runSingleRequest = async (iteration, userId) => {
-            const builtins = buildBuiltins({ userId, iteration });
-            let parsed;
-            try {
-                parsed = parseCurlCommand(curlTextRaw);
-                if (!parsed.url) {
-                    appendResult(`User ${userId}: Error parsing curl: URL not found.`);
-                    return;
-                }
-                parsed.url = substituteVariables(parsed.url, variableDefs, { builtins, iteration });
-                if (parsed.body) {
-                    parsed.body = substituteVariables(parsed.body, variableDefs, { builtins, iteration });
-                    try {
-                        JSON.parse(parsed.body); // Validate
-                    } catch (err) {
-                        appendResult(`User ${userId}: Invalid JSON body after substitution: ${parsed.body}`);
-                        return;
-                    }
-                }
-            } catch (err) {
-                appendResult(`User ${userId}: Error parsing curl: ${err.message}`);
-                return;
-            }
-
-            const fetchOptions = {
-                method: parsed.method,
-                headers: { ...parsed.headers || {}, ...getAllHeaders() }
-            };
-            if (parsed.body && parsed.method !== 'GET' && parsed.method !== 'HEAD') {
-                fetchOptions.body = parsed.body;
-            }
-
-            const start = performance.now();
-            try {
-                const res = await fetch(parsed.url, fetchOptions);
-                const duration = Math.round(performance.now() - start);
-                const resText = await res.text();
-
-                totalRequests++;
-                successfulRequests++;
-                latencies.push(duration);
-                latencyPoints.push({ t: Date.now() - startTime, v: duration });
-                statusCounts[res.status] = (statusCounts[res.status] || 0) + 1;
-
-                const validation = validateResponse(resText);
-                const validationFailed = validation.includes('❌');
-                if (validationFailed) validationFailures++;
-                const validationNote = validationFailed ? ' ❌ validation failed' : (validation ? ' ✅' : '');
-                appendResult(`User ${userId}: ${res.status} ${res.statusText} (${duration}ms, ${resText.length}B)${validationNote}`);
-                drawLatencyChart(latencyPoints);
-                renderReport();
-            } catch (e) {
-                const duration = Math.round(performance.now() - start);
-                totalRequests++;
-                failedRequests++;
-                latencies.push(duration);
-                latencyPoints.push({ t: Date.now() - startTime, v: duration });
-
-                const headersStr = Object.entries(fetchOptions.headers || {})
-                    .map(([k, v]) => `    ${k}: ${v}`).join('\n');
-                appendResult(
-                    `User ${userId}: Error: ${e.message} (${duration}ms)` +
-                    diagnoseError(e, parsed.url) + '\n' +
-                    `  URL:     ${parsed.url}\n` +
-                    `  Method:  ${fetchOptions.method}\n` +
-                    `  Headers:\n${headersStr || '    (none)'}\n` +
-                    `  Body:    ${fetchOptions.body ?? '(none)'}`
-                );
-                drawLatencyChart(latencyPoints);
-                renderReport();
-            }
-        };
-
-        const startTime = Date.now();
-        const endTime = startTime + durationSec * 1000;
-
-        const scheduleUser = async (userId, delayMs) => {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-            let iteration = 0;
-            while (
-                !cancelled &&
-                (
-                    (durationType === 'time' && Date.now() < endTime) ||
-                    (durationType === 'iteration' && iteration < maxIterations)
-                )
-                ) {
-                await runSingleRequest(iteration, userId);
-                iteration++;
-                if (pauseSec > 0) {
-                    await new Promise(resolve => setTimeout(resolve, pauseSec * 1000));
-                }
-            }
-        };
-
-        const userTasks = Array.from({ length: peakUsers }, (_, i) => {
-            const delay = Math.floor((rampUpSec * 1000 / peakUsers) * i);
-            return scheduleUser(i + 1, delay);
-        });
-
-        await Promise.all(userTasks);
-
-        setRunState(null);
-        if (!cancelled) {
-            document.getElementById('status').textContent = 'Finished';
-            renderReport();
-        }
-    }
-
     async function runSingleTest() {
+        const curlTextRaw = document.getElementById('curlInput').value.trim();
+        if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
+
         saveFormValues();
-        cancelled = false;
         setRunState('single');
-        document.getElementById('status').textContent = 'Running Single Test';
+        document.getElementById('status').textContent = 'Running Single…';
         document.getElementById('report').innerHTML = '';
         document.getElementById('results').textContent = '';
         document.getElementById('remoteDashboardLink').style.display = 'none';
 
-        const curlTextRaw = document.getElementById('curlInput').value;
-        const variableDefs = getVariableDefinitions();
-        const appendResult = (line) => {
-            const resultsOutput = document.getElementById('results');
-            resultsOutput.textContent += line + '\n';
-            resultsOutput.scrollTop = resultsOutput.scrollHeight;
-        };
+        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
 
         let parsed;
         try {
             parsed = parseCurlCommand(curlTextRaw);
-            if (!parsed.url) {
-                appendResult(`Error parsing curl: URL not found.`);
-                document.getElementById('status').textContent = 'Failed';
-                setRunState(null);
-                return;
-            }
-            const builtins = buildBuiltins({ userId: 1, iteration: 0 });
-            parsed.url = substituteVariables(parsed.url, variableDefs, { builtins, iteration: 0 });
-            if (parsed.body) {
-                parsed.body = substituteVariables(parsed.body, variableDefs, { builtins, iteration: 0 });
-                JSON.parse(parsed.body); // Validate
-            }
+            if (!parsed.url) throw new Error('URL not found in curl command.');
         } catch (err) {
-            appendResult(`Error parsing curl: ${err.message}`);
-            document.getElementById('status').textContent = 'Failed';
+            document.getElementById('status').textContent = `Parse error: ${err.message}`;
             setRunState(null);
             return;
         }
 
-        const fetchOptions = {
-            method: parsed.method,
-            headers: { ...parsed.headers || {}, ...getAllHeaders() }
-        };
-        if (parsed.body && parsed.method !== 'GET' && parsed.method !== 'HEAD') {
-            fetchOptions.body = parsed.body;
-        }
-
-        const start = performance.now();
+        let runId;
         try {
-            const res = await fetch(parsed.url, fetchOptions);
-            const duration = Math.round(performance.now() - start);
-            const resText = await res.text();
-            const validationSummary = validateResponse(resText);
-
-            appendResult(`${res.status} ${res.statusText} (${duration}ms, ${resText.length}B)`);
-            appendPrettyJson(resText);
-            drawLatencyChart([{ t: 0, v: duration }]);
+            const resp = await fetch(`${runnerUrl}/runs`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name:                 document.getElementById('projectName').value.trim() || undefined,
+                    url:                  parsed.url,
+                    method:               parsed.method,
+                    headers:              { ...parsed.headers || {}, ...getAllHeaders() },
+                    body:                 parsed.body ? (() => { try { return JSON.parse(parsed.body); } catch { return parsed.body; } })() : null,
+                    variables:            getVariableDefinitions(),
+                    users:                1,
+                    iterations:           1,
+                    pause:                0,
+                    responseContentType:  document.getElementById('responseContentType').value,
+                    validationExpression: document.getElementById('validationExpression').value.trim(),
+                }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || resp.statusText);
+            }
+            const run = await resp.json();
+            runId = run.id;
+            remoteRunId = runId;
+            const dashLink = document.getElementById('remoteDashboardLink');
+            dashLink.dataset.url = runnerUrl;
+            dashLink.style.display = 'inline';
+        } catch (err) {
+            document.getElementById('status').textContent = `Runner error: ${err.message}`;
             setRunState(null);
-            document.getElementById('status').textContent = 'Finished';
-            document.getElementById('report').innerHTML = `
-                <p><strong>Total Requests:</strong> 1</p>
-                <p><strong>Successful:</strong> ${res.ok ? 1 : 0}</p>
-                <p><strong>Failed:</strong> ${res.ok ? 0 : 1}</p>
-                <p><strong>Latency:</strong> ${duration} ms</p>
-                <p><strong>Status Code:</strong> ${res.status}</p>
-                ${validationSummary}
-            `;
-        } catch (e) {
-            const duration = Math.round(performance.now() - start);
-            const headersStr = Object.entries(fetchOptions.headers || {})
-                .map(([k, v]) => `    ${k}: ${v}`).join('\n');
-            appendResult(
-                `Error: ${e.message} (${duration}ms)` +
-                diagnoseError(e, parsed.url) + '\n' +
-                `  URL:     ${parsed.url}\n` +
-                `  Method:  ${fetchOptions.method}\n` +
-                `  Headers:\n${headersStr || '    (none)'}\n` +
-                `  Body:    ${fetchOptions.body ?? '(none)'}`
-            );
-            drawLatencyChart([{ t: 0, v: duration }]);
-            setRunState(null);
-            document.getElementById('status').textContent = 'Failed';
-            document.getElementById('report').innerHTML = `
-                <p><strong>Total Requests:</strong> 1</p>
-                <p><strong>Successful:</strong> 0</p>
-                <p><strong>Failed:</strong> 1</p>
-                <p><strong>Latency:</strong> ${duration} ms</p>
-                <p><strong>Status Code:</strong> n/a</p>
-            `;
+            return;
         }
+
+        document.getElementById('status').textContent = `Running on ${runnerUrl}…`;
+        document.getElementById('results').textContent = `Run submitted. ID: ${runId}\nWaiting for result…\n`;
+
+        remotePollInterval = setInterval(async () => {
+            try {
+                const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
+                const { status } = await r.json();
+                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
+
+                if (['finished', 'failed', 'stopped'].includes(status)) {
+                    clearInterval(remotePollInterval);
+                    setRunState(null);
+                    await loadRemoteResults(runnerUrl, runId, status);
+                }
+            } catch { /* transient */ }
+        }, 1000);
     }
 
     function resetForm() {
@@ -1179,41 +950,6 @@
         }
     }
 
-    function appendPrettyJson(jsonText) {
-        const resultsOutput = document.getElementById('results');
-        try {
-            const obj = JSON.parse(jsonText);
-            const pretty = JSON.stringify(obj, null, 2);
-            const highlighted = syntaxHighlight(pretty);
-            resultsOutput.innerHTML += '<div>--- Response Body ---</div>';
-            resultsOutput.innerHTML += `<code>${highlighted}</code>`;
-        } catch {
-            resultsOutput.innerHTML += '<div>--- Response Body (raw) ---</div>';
-            resultsOutput.innerHTML += `<pre>${jsonText}</pre>`;
-        }
-    }
-
-    function syntaxHighlight(json) {
-        if (typeof json != 'string') {
-            json = JSON.stringify(json, undefined, 2);
-        }
-        json = json
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(true|false|null)\b|\b\d+(\.\d+)?\b)/g, match => {
-            let cls = 'number';
-            if (/^"/.test(match)) {
-                cls = /:$/.test(match) ? 'key' : 'string';
-            } else if (/true|false/.test(match)) {
-                cls = 'boolean';
-            } else if (/null/.test(match)) {
-                cls = 'null';
-            }
-            return `<span class="${cls}">${match}</span>`;
-        });
-    }
-
     function onResponseTypeChange() {
         const type = document.getElementById('responseContentType').value;
         const wrapper = document.getElementById('validationWrapper');
@@ -1235,60 +971,6 @@
             wrapper.style.display = 'block';
         }
         saveFormValues();
-    }
-
-    function validateResponse(resText) {
-        const type = document.getElementById('responseContentType').value;
-        const expr = document.getElementById('validationExpression').value.trim();
-
-        if (type === '*' || !expr) return '';
-
-        try {
-            if (type === 'json') {
-                const parsed = JSON.parse(resText);
-                const result = validateJsonPathPlus(parsed, expr);
-                return `<p><strong>Validation:</strong> ${result.message}</p>`;
-            }
-            if (type === 'xml') {
-                const doc = new DOMParser().parseFromString(resText, 'application/xml');
-                const parseErr = doc.querySelector('parsererror');
-                if (parseErr) return `<p><strong>Validation Error:</strong> Could not parse XML response</p>`;
-                const result = doc.evaluate(expr, doc, null, XPathResult.ANY_TYPE, null);
-                const node = result.iterateNext();
-                return node
-                    ? `<p><strong>Validation:</strong> ✅ ${expr} matched</p>`
-                    : `<p><strong>Validation:</strong> ❌ ${expr} not found</p>`;
-            }
-            if (type === 'text') {
-                const match = new RegExp(expr).test(resText);
-                return match
-                    ? `<p><strong>Validation:</strong> ✅ pattern matched</p>`
-                    : `<p><strong>Validation:</strong> ❌ pattern not matched</p>`;
-            }
-        } catch (err) {
-            return `<p><strong>Validation Error:</strong> ${err.message}</p>`;
-        }
-        return '';
-    }
-
-    function validateJsonPathPlus(json, path) {
-        try {
-            const result = JSONPath.JSONPath({ path, json });
-
-            const pass = result && result.length > 0;
-
-            return {
-                success: pass,
-                message: pass
-                    ? `✅ ${path} exists in response.`
-                    : `❌ ${path} not found in response.`
-            };
-        } catch (err) {
-            return {
-                success: false,
-                message: `❌ Error evaluating JSONPath '${path}': ${err.message}`
-            };
-        }
     }
 
     function getAllProfiles() {
@@ -1633,24 +1315,14 @@
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    function toggleRemoteForm() {
-        const form = document.getElementById('remoteForm');
-        const btn = document.getElementById('remoteToggleBtn');
-        const isVisible = form.style.display !== 'none';
-        form.style.display = isVisible ? 'none' : 'block';
-        btn.textContent = isVisible ? 'Run Remote Test ▼' : 'Run Remote Test ▲';
-        saveFormValues();
-    }
-
     let remoteRunId = null;
     let remotePollInterval = null;
 
     async function executeRemoteTest() {
-        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
-
         const curlTextRaw = document.getElementById('curlInput').value.trim();
         if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
 
+        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
         const durationSec = parseInt(document.getElementById('duration').value) || 30;
         const peakUsers   = parseInt(document.getElementById('users').value)    || 1;
 
@@ -1658,13 +1330,13 @@
         try {
             parsed = parseCurlCommand(curlTextRaw);
             if (!parsed.url) throw new Error('URL not found in curl command.');
-            // Do NOT substitute variables — send raw templates so k6 can resolve
-            // per-iteration / per-VU at runtime.
         } catch (err) {
             document.getElementById('status').textContent = `Parse error: ${err.message}`;
             return;
         }
 
+        saveFormValues();
+        setRunState('test');
         document.getElementById('status').textContent = `Submitting to ${runnerUrl}…`;
         document.getElementById('report').innerHTML  = '';
         document.getElementById('results').textContent = '';
@@ -1703,6 +1375,7 @@
             dashLink.style.display = 'inline';
         } catch (err) {
             document.getElementById('status').textContent = `Runner error: ${err.message}`;
+            setRunState(null);
             return;
         }
 
@@ -1727,7 +1400,8 @@
 
                 if (['finished', 'failed', 'stopped'].includes(status)) {
                     clearInterval(remotePollInterval);
-                    await loadRemoteResults(runnerUrl, runId, status, host);
+                    setRunState(null);
+                    await loadRemoteResults(runnerUrl, runId, status);
                 }
             } catch { /* transient — keep polling */ }
         }, 1500);
