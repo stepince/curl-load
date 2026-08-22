@@ -99,7 +99,7 @@ async function startTest() {
       ['Status',   run.status],
     ]);
     $('stopBtn').style.display = 'inline-block';
-    showLiveDashboardLink();
+    showLiveDashboardLink(run.id);
 
     startPolling();
     loadHistory();
@@ -229,7 +229,7 @@ async function loadHistory() {
       $('runBtn').disabled = true;
       $('stopBtn').style.display = 'inline-block';
       $('detailOutput').textContent = 'Run in progress…';
-      showLiveDashboardLink();
+      showLiveDashboardLink(activeRun.id);
       startPolling();
     }
   } catch { /* network error */ }
@@ -647,9 +647,9 @@ function formatReport(data, elapsedMs = null) {
 }
 
 
-function showLiveDashboardLink() {
+function showLiveDashboardLink(runId) {
   const link = $('dashboardLink');
-  link.href = `http://${window.location.hostname}:5665`;
+  link.dataset.url = `/runs/${runId}/dashboard/live/`;
   link.style.display = 'inline';
 }
 
@@ -691,7 +691,7 @@ function renderOutput() {
   }
   const link = $('dashboardLink');
   if (dashboardReport) {
-    link.href = dashboardReport;
+    link.dataset.url = dashboardReport;
     link.style.display = 'inline';
   } else {
     link.style.display = 'none';

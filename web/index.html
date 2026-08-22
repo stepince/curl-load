@@ -236,7 +236,7 @@
   </style>
 </head>
 <body>
-  <h1>curl-load dashboard <a href="/load-tester.html" target="curl-load-workbench" style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load workbench →</a></h1>
+  <h1>curl-load dashboard <a href="#" onclick="window.open('/load-tester.html','curl-load-workbench'); return false;" style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load workbench →</a></h1>
 
   <!-- Left column: form -->
   <div>
@@ -340,10 +340,11 @@
     <div id="historyDetail">
       <div class="metric-grid" id="detailMetrics"></div>
       <div style="display:flex; align-items:center; margin-bottom:0.5rem;">
-        <a id="dashboardLink" href="#" target="_blank"
-           style="display:none; font-size:0.75rem; color:#7dd3fc; text-decoration:none; margin-left:0.75rem;"
+        <a id="dashboardLink" href="#"
+           style="display:none; font-size:0.75rem; color:#7dd3fc; text-decoration:none; margin-left:0.75rem; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
-           onmouseout="this.style.textDecoration='none'">View K6 Dashboard ↗</a>
+           onmouseout="this.style.textDecoration='none'"
+           onclick="window.open(this.dataset.url,'curl-load-k6-dashboard'); return false;">View K6 Dashboard ↗</a>
         <a id="pdfLink" href="#"
            style="display:none; font-size:0.75rem; color:#94a3b8; text-decoration:none; margin-left:0.75rem;"
            onmouseover="this.style.textDecoration='underline'"

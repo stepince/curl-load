@@ -195,8 +195,8 @@
             margin-top: 0.5rem;
             background: #0f1117;
         }
-        .remote-form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-        .remote-form-row label { display: inline-block; width: 3.5rem; margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
+        .remote-form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .remote-form-row label { display: inline-block; white-space: nowrap; margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
         .remote-form-row input { margin-bottom: 0; }
 
         /* Report */
@@ -409,14 +409,14 @@
 
 <!-- Actions -->
 <div class="card" style="padding:0.85rem 1.25rem;">
-    <button onclick="runSingleTest()">Run Single</button>
-    <button onclick="runTest()">Run Test</button>
+    <button id="runSingleBtn" onclick="runSingleTest()">Run Single</button>
+    <button id="runTestBtn" onclick="runTest()">Run Test</button>
     <button id="remoteToggleBtn" onclick="toggleRemoteForm()">Run Remote ▼</button>
     <button onclick="cancelTest()" style="background:#ef4444;">Stop</button>
     <button onclick="resetForm()" style="background:#475569;">Reset</button>
     <div id="remoteForm">
         <div class="remote-form-row" style="margin-top:0.75rem;">
-            <label for="remoteUrl">URL:</label>
+            <label for="remoteUrl">Runner URL:</label>
             <input type="text" id="remoteUrl" placeholder="http://localhost:3000" style="flex:1; margin:0;" />
             <button onclick="executeRemoteTest()" style="margin:0;">Execute</button>
         </div>
@@ -428,10 +428,11 @@
     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
         <span class="section-title" style="margin:0;">Status</span>
         <span id="status" style="font-size:0.85rem; color:#94a3b8;">Idle</span>
-        <a id="remoteDashboardLink" href="#" target="curl-load-dashboard"
-           style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto;"
+        <a id="remoteDashboardLink" href="#"
+           style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
-           onmouseout="this.style.textDecoration='none'">curl-load dashboard ↗</a>
+           onmouseout="this.style.textDecoration='none'"
+           onclick="window.open(this.dataset.url,'curl-load-dashboard'); return false;">curl-load dashboard ↗</a>
     </div>
     <div id="report"></div>
     <pre id="results" style="margin-top:0.75rem;"></pre>
@@ -607,8 +608,29 @@
         return { method, url: url || '', headers, body };
     }
 
+    function collapseRemoteForm() {
+        const form = document.getElementById('remoteForm');
+        const btn  = document.getElementById('remoteToggleBtn');
+        if (form.style.display !== 'none') {
+            form.style.display = 'none';
+            btn.textContent = 'Run Remote Test ▼';
+            saveFormValues();
+        }
+    }
+
+    function setRunState(mode) {
+        const singleBtn = document.getElementById('runSingleBtn');
+        const testBtn   = document.getElementById('runTestBtn');
+        singleBtn.textContent = mode === 'single' ? 'Running Single…' : 'Run Single';
+        testBtn.textContent   = mode === 'test'   ? 'Running Test…'   : 'Run Test';
+        singleBtn.disabled    = !!mode;
+        testBtn.disabled      = !!mode;
+        if (mode) collapseRemoteForm();
+    }
+
     function cancelTest() {
         cancelled = true;
+        setRunState(null);
         document.getElementById('status').textContent = 'Cancelled';
 
         if (remoteRunId) {
@@ -841,6 +863,7 @@
     async function runTest() {
         saveFormValues();
         cancelled = false;
+        setRunState('test');
         document.getElementById('status').textContent = 'Running';
         document.getElementById('report').innerHTML = '';
         document.getElementById('remoteDashboardLink').style.display = 'none';
@@ -990,6 +1013,7 @@
 
         await Promise.all(userTasks);
 
+        setRunState(null);
         if (!cancelled) {
             document.getElementById('status').textContent = 'Finished';
             renderReport();
@@ -999,6 +1023,7 @@
     async function runSingleTest() {
         saveFormValues();
         cancelled = false;
+        setRunState('single');
         document.getElementById('status').textContent = 'Running Single Test';
         document.getElementById('report').innerHTML = '';
         document.getElementById('results').textContent = '';
@@ -1018,6 +1043,7 @@
             if (!parsed.url) {
                 appendResult(`Error parsing curl: URL not found.`);
                 document.getElementById('status').textContent = 'Failed';
+                setRunState(null);
                 return;
             }
             const builtins = buildBuiltins({ userId: 1, iteration: 0 });
@@ -1029,6 +1055,7 @@
         } catch (err) {
             appendResult(`Error parsing curl: ${err.message}`);
             document.getElementById('status').textContent = 'Failed';
+            setRunState(null);
             return;
         }
 
@@ -1050,6 +1077,7 @@
             appendResult(`${res.status} ${res.statusText} (${duration}ms, ${resText.length}B)`);
             appendPrettyJson(resText);
             drawLatencyChart([{ t: 0, v: duration }]);
+            setRunState(null);
             document.getElementById('status').textContent = 'Finished';
             document.getElementById('report').innerHTML = `
                 <p><strong>Total Requests:</strong> 1</p>
@@ -1072,6 +1100,7 @@
                 `  Body:    ${fetchOptions.body ?? '(none)'}`
             );
             drawLatencyChart([{ t: 0, v: duration }]);
+            setRunState(null);
             document.getElementById('status').textContent = 'Failed';
             document.getElementById('report').innerHTML = `
                 <p><strong>Total Requests:</strong> 1</p>
@@ -1670,7 +1699,7 @@
 
             document.getElementById('report').innerHTML = '';
             const dashLink = document.getElementById('remoteDashboardLink');
-            dashLink.href = runnerUrl;
+            dashLink.dataset.url = runnerUrl;
             dashLink.style.display = 'inline';
         } catch (err) {
             document.getElementById('status').textContent = `Runner error: ${err.message}`;
