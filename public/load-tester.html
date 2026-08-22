@@ -197,7 +197,7 @@
         }
         .remote-form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
         .remote-form-row label { display: inline-block; width: 3.5rem; margin-bottom: 0; font-size: 0.8rem; color: #94a3b8; }
-        .remote-form-row input { width: auto; margin-bottom: 0; flex: 0 0 auto; }
+        .remote-form-row input { margin-bottom: 0; }
 
         /* Report */
         #report p { font-size: 0.85rem; margin-bottom: 0.3rem; color: #cbd5e1; }
@@ -416,10 +416,8 @@
     <button onclick="resetForm()" style="background:#475569;">Reset</button>
     <div id="remoteForm">
         <div class="remote-form-row" style="margin-top:0.75rem;">
-            <label for="remoteHost">Host:</label>
-            <input type="text" id="remoteHost" placeholder="localhost" style="width:180px; margin:0;" />
-            <label for="remotePort">Port:</label>
-            <input type="text" id="remotePort" placeholder="3000" style="width:90px; margin:0;" />
+            <label for="remoteUrl">URL:</label>
+            <input type="text" id="remoteUrl" placeholder="http://localhost:3000" style="flex:1; margin:0;" />
             <button onclick="executeRemoteTest()" style="margin:0;">Execute</button>
         </div>
     </div>
@@ -430,7 +428,7 @@
     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
         <span class="section-title" style="margin:0;">Status</span>
         <span id="status" style="font-size:0.85rem; color:#94a3b8;">Idle</span>
-        <a id="remoteDashboardLink" href="#" target="_blank"
+        <a id="remoteDashboardLink" href="#" target="curl-load-dashboard"
            style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto;"
            onmouseover="this.style.textDecoration='underline'"
            onmouseout="this.style.textDecoration='none'">curl-load dashboard ↗</a>
@@ -468,8 +466,7 @@
         authPassword: '',
         headers: [],
         variables: [],
-        remoteHost: '',
-        remotePort: '',
+        remoteUrl: '',
         remoteExpanded: false
     };
 
@@ -484,7 +481,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         loadFormValues();
-        const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'remoteHost', 'remotePort', 'authType', 'authToken', 'authUsername', 'authPassword'];
+        const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'remoteUrl', 'authType', 'authToken', 'authUsername', 'authPassword'];
         fields.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', saveFormValues);
@@ -615,9 +612,8 @@
         document.getElementById('status').textContent = 'Cancelled';
 
         if (remoteRunId) {
-            const host = document.getElementById('remoteHost').value.trim() || 'localhost';
-            const port = document.getElementById('remotePort').value.trim() || '3000';
-            fetch(`http://${host}:${port}/runs/${remoteRunId}/stop`, { method: 'POST' })
+            const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
+            fetch(`${runnerUrl}/runs/${remoteRunId}/stop`, { method: 'POST' })
                 .catch(() => {});
         }
     }
@@ -776,8 +772,7 @@
                     multiline: valuesInput.tagName === 'TEXTAREA'
                 };
             }),
-            remoteHost: document.getElementById('remoteHost').value,
-            remotePort: document.getElementById('remotePort').value,
+            remoteUrl: document.getElementById('remoteUrl').value,
             remoteExpanded: document.getElementById('remoteForm').style.display !== 'none'
         };
         localStorage.setItem(getStorageKey(), JSON.stringify(formData));
@@ -800,8 +795,7 @@
         document.getElementById('validationExpression').value = formData.validationExpression || '';
         onResponseTypeChange();
 
-        document.getElementById('remoteHost').value = formData.remoteHost || '';
-        document.getElementById('remotePort').value = formData.remotePort || '';
+        document.getElementById('remoteUrl').value = formData.remoteUrl || formData.remoteHost && `http://${formData.remoteHost}:${formData.remotePort || '3000'}` || '';
         const remoteForm = document.getElementById('remoteForm');
         const remoteBtn = document.getElementById('remoteToggleBtn');
         if (formData.remoteExpanded) {
@@ -1623,9 +1617,7 @@
     let remotePollInterval = null;
 
     async function executeRemoteTest() {
-        const host = document.getElementById('remoteHost').value.trim() || 'localhost';
-        const port = document.getElementById('remotePort').value.trim() || '3000';
-        const runnerUrl = `http://${host}:${port}`;
+        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
 
         const curlTextRaw = document.getElementById('curlInput').value.trim();
         if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }

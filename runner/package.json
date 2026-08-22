@@ -1,6 +1,6 @@
 {
   "name": "curl-load-runner",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "HTTP API runner for curl-load — manages k6 load test processes",
   "type": "module",
   "main": "server.js",
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "express": "^4.19.2",
+    "http-proxy-middleware": "^3.0.0",
     "pdf-lib": "^1.17.1",
     "puppeteer": "^24.40.0",
     "uuid": "^9.0.1"

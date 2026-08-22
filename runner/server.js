@@ -2,7 +2,9 @@
 // Licensed under custom license. See LICENSE file.
 // curl-load web UI — vanilla JS, no frameworks
 import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { runsRouter } from './src/routes/runs.js';
+import { getRun } from './src/services/run-store.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,13 +25,56 @@ app.use(express.static('../web'));
 // Serve the load-tester workbench and its assets
 app.use(express.static('../public'));
 
+// ─── k6 live dashboard proxy ──────────────────────────────────────────────────
+// Routes /runs/:id/dashboard/live/* → http://localhost:<dashboardPort>/*
+// so k6's internal port never needs to be exposed externally.
+const proxyByPort = new Map();
+
+function getDashboardProxy(port) {
+  if (!proxyByPort.has(port)) {
+    proxyByPort.set(port, createProxyMiddleware({
+      target: `http://localhost:${port}`,
+      changeOrigin: true,
+      on: {
+        error: (_err, _req, res) => {
+          if (res && !res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'live dashboard not available' }));
+          }
+        },
+      },
+    }));
+  }
+  return proxyByPort.get(port);
+}
+
+// Must be registered before runsRouter
+app.use('/runs/:id/dashboard/live', (req, res, next) => {
+  const run = getRun(req.params.id);
+  if (!run?.dashboardPort) {
+    return res.status(404).json({ error: 'live dashboard not available' });
+  }
+  if (!req.url) req.url = '/';
+  return getDashboardProxy(run.dashboardPort)(req, res, next);
+});
+
 app.use('/runs', runsRouter);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 curl-load is running`);
   console.log(`👉 Workbench: http://localhost:${PORT}/load-tester.html`);
   console.log(`👉 Dashboard: http://localhost:${PORT}/`);
+});
+
+// Proxy WebSocket upgrades for the k6 live dashboard
+server.on('upgrade', (req, socket, head) => {
+  const m = req.url?.match(/\/runs\/([^/?#]+)\/dashboard\/live/);
+  if (!m) { socket.destroy(); return; }
+  const run = getRun(m[1]);
+  if (!run?.dashboardPort) { socket.destroy(); return; }
+  req.url = req.url.replace(/\/runs\/[^/?#]+\/dashboard\/live/, '') || '/';
+  getDashboardProxy(run.dashboardPort).upgrade(req, socket, head);
 });

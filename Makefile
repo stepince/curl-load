@@ -1,7 +1,7 @@
 # ---- Config ----
 IMAGE_NAME := curl-load-runner
 DOCKER_USER := curlload
-VERSION := 1.0.0
+VERSION := 1.1.0
 
 FULL_IMAGE := $(DOCKER_USER)/$(IMAGE_NAME)
 
@@ -18,12 +18,32 @@ build-no-cache:
 		-t $(FULL_IMAGE):latest \
 		.
 
+build-amd64:
+	docker buildx build --platform linux/amd64 -f runner/Dockerfile \
+		-t $(FULL_IMAGE):$(VERSION) \
+		-t $(FULL_IMAGE):latest \
+		.
+
+publish-amd64:
+	docker buildx build --platform linux/amd64 -f runner/Dockerfile \
+		-t $(FULL_IMAGE):$(VERSION) \
+		-t $(FULL_IMAGE):latest \
+		--push \
+		.
+
+publish-multiarch:
+	docker buildx build --platform linux/amd64,linux/arm64 -f runner/Dockerfile \
+		-t $(FULL_IMAGE):$(VERSION) \
+		-t $(FULL_IMAGE):latest \
+		--push \
+		.
+
 # ---- Run ----
 run:
-	docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs $(FULL_IMAGE):latest
+	docker run -p 3000:3000 -v curl-load-runs:/app/runs $(FULL_IMAGE):latest
 
 run-version:
-	docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
+	docker run -p 3000:3000 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
 
 # ---- Docker Hub ----
 login:

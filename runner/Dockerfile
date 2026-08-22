@@ -68,6 +68,6 @@ RUN npm ci --omit=dev
 COPY runner ./
 COPY --from=build /app/build/public /app/public
 
-EXPOSE 3000 5665-5684
+EXPOSE 3000
 
 CMD ["npm", "start"]

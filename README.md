@@ -26,7 +26,7 @@ curl-load/
 
 ### 1 — Build the local k6 binary (optional)
 
-Provides a live web dashboard on port 5665 during test runs. Requires Go and installs xk6 automatically.
+Provides a live k6 web dashboard (proxied through port 3000 at `/runs/:id/dashboard/live/`). Requires Go and installs xk6 automatically.
 
 ```bash
 go install go.k6.io/xk6/cmd/xk6@latest
@@ -117,7 +117,8 @@ Variables allow dynamic values in requests. Use `${variableName}` syntax anywher
 | GET | `/runs/:id/summary` | Get k6 summary (JSON) |
 | GET | `/runs/:id/stdout` | Get raw k6 output |
 | GET | `/runs/:id/metrics` | Get live metrics |
-| GET | `/runs/:id/dashboard` | View k6 HTML dashboard |
+| GET | `/runs/:id/dashboard` | View exported k6 HTML dashboard |
+| GET | `/runs/:id/dashboard/live/` | Proxy to k6 live dashboard |
 | GET | `/runs/:id/report.pdf` | Download PDF report |
 | POST | `/runs/:id/stop` | Stop a running test |
 | DELETE | `/runs/:id` | Delete a finished run |
@@ -152,10 +153,10 @@ created → running → finished
 ## Docker
 
 ```bash
-docker run -p 3000:3000 -p 5665-5684:5665-5684 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
+docker run -p 3000:3000 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
 ```
 
-The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history persists across image updates. The same volume is reattached when you pull and restart with a new image.
+Only port 3000 is needed — the k6 live dashboard is proxied through it at `/runs/:id/dashboard/live/`. The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history persists across image updates.
 
 ---
 

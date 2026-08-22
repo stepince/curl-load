@@ -154,7 +154,7 @@ export function serializeRun(run) {
     status:       run.status,
     config:       run.config,
     dashboard:         run.dashboard,
-    dashboardLive:     run.dashboard && run.dashboardPort ? `http://${process.env.HOST || 'localhost'}:${run.dashboardPort}` : null,
+    dashboardLive:     run.dashboard && run.dashboardPort ? `/runs/${run.id}/dashboard/live/` : null,
     dashboardReport:   run.dashboard ? `/runs/${run.id}/dashboard` : null,
     createdAt:    run.createdAt,
     startedAt:    run.startedAt,

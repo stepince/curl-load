@@ -163,14 +163,13 @@
 
   <h3>1. Start the container</h3>
   <pre><code>docker run -d --name curl-load \
-  -p 3000:3000 -p 5665-5684:5665-5684 \
+  -p 3000:3000 \
   -v curl-load-runs:/app/runs \
   curlload/curl-load-runner:latest</code></pre>
 
   <ul>
     <li><code>-d</code> — run in the background</li>
-    <li><code>-p 3000:3000</code> — dashboard &amp; API</li>
-    <li><code>-p 5665-5684:5665-5684</code> — k6 live dashboard ports</li>
+    <li><code>-p 3000:3000</code> — dashboard, API &amp; k6 live dashboard (all on one port)</li>
     <li><code>-v curl-load-runs:/app/runs</code> — persist run history across restarts</li>
   </ul>
 
@@ -181,7 +180,7 @@
     <tr><th>Interface</th><th>URL</th></tr>
     <tr><td>Dashboard</td><td>http://localhost:3000/</td></tr>
     <tr><td>Workbench</td><td>http://localhost:3000/load-tester.html</td></tr>
-    <tr><td>k6 live dashboard</td><td>http://localhost:5665/</td></tr>
+    <tr><td>k6 live dashboard</td><td>http://localhost:3000/runs/&lt;id&gt;/dashboard/live/</td></tr>
   </table>
 
   <hr class="divider">
