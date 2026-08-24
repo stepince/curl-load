@@ -146,6 +146,20 @@ function startPolling() {
             $('detailOutput').textContent = formatLiveMetrics(await mr.json(), elapsedSec);
           }
         } catch { /* transient */ }
+
+        // Close the live k6 dashboard window once the test duration has elapsed.
+        // An open SSE connection prevents k6 from finalising its dashboard export,
+        // which blocks handleSummary and prevents summary.json from being written.
+        if (k6DashWin && !k6DashWin.closed && startedAt && currentRunMeta?.duration) {
+          const durationSec = parseDurationSec(currentRunMeta.duration) || 30;
+          const expectedEndMs = new Date(startedAt).getTime() + (durationSec + 10) * 1000;
+          if (Date.now() > expectedEndMs) {
+            // Navigate to the dashboard URL — this drops the SSE connection so
+            // k6 can finalise its export. The server returns a "generating…"
+            // waiting page that auto-reloads until dashboard.html is ready.
+            k6DashWin.location.href = `/runs/${currentRunId}/dashboard`;
+          }
+        }
       }
 
       if (['finished', 'failed', 'stopped'].includes(status)) {

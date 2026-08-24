@@ -149,7 +149,26 @@ runsRouter.get('/:id/dashboard', async (req, res) => {
     const html = await readFile(dashboardPath, 'utf8');
     res.type('text/html').send(html);
   } catch {
-    res.status(404).json({ error: 'dashboard not available yet — run may still be in progress' });
+    if (['running', 'stopping'].includes(run.status)) {
+      return res.type('text/html').send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Generating dashboard…</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f1117;color:#e2e8f0;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;
+       min-height:100vh;gap:1rem;}
+  p{color:#94a3b8;font-size:0.9rem;}
+  .spinner{width:36px;height:36px;border:3px solid #1e2330;border-top-color:#3b82f6;
+           border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<script>setTimeout(()=>location.reload(),2000)</script>
+</head><body>
+  <div class="spinner"></div>
+  <p>Generating dashboard report…</p>
+</body></html>`);
+    }
+    res.status(404).json({ error: 'dashboard not available' });
   }
 });
 
