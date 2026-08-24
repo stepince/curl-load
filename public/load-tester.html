@@ -1526,9 +1526,6 @@
                     } catch { /* chart stays as-is from last live update */ }
 
                     document.getElementById('results').textContent = '';
-                    if (run.dashboardReport) {
-                        window.open(`${runnerUrl}${run.dashboardReport}`, 'curl-load-k6-dashboard');
-                    }
                     return;
                 }
             } catch { /* fall through */ }

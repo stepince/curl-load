@@ -11,6 +11,7 @@ let historyPollInterval = null;
 let outputMode = 'text';
 let lastFinishedData = null;
 let outputCollapsed = true;
+let k6DashWin = null;
 const selectedRunIds = new Set();
 const runStatusMap   = new Map(); // runId → status, kept current after each renderHistory
 
@@ -653,6 +654,10 @@ function showLiveDashboardLink(runId) {
   link.style.display = 'inline';
 }
 
+function openK6Dashboard(url) {
+  k6DashWin = window.open(url, 'curl-load-k6-dashboard');
+}
+
 
 function setOutputMode(mode) {
   outputMode = mode;
@@ -693,7 +698,7 @@ function renderOutput() {
   if (dashboardReport) {
     link.dataset.url = dashboardReport;
     link.style.display = 'inline';
-    window.open(dashboardReport, 'curl-load-k6-dashboard');
+    if (k6DashWin && !k6DashWin.closed) k6DashWin.location.href = dashboardReport;
   } else {
     link.style.display = 'none';
   }
