@@ -576,8 +576,8 @@
                 if (colon !== -1) headers[h.slice(0, colon).trim()] = h.slice(colon + 1).trim();
             } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary') {
                 body = tokens[++i];
-            } else if (!t.startsWith('-') && !url && /^https?:\/\//i.test(t)) {
-                url = t;
+            } else if (!t.startsWith('-') && !url) {
+                url = /^https?:\/\//i.test(t) ? t : `http://${t}`;
             }
             i++;
         }
@@ -856,7 +856,11 @@
             }),
             remoteUrl: document.getElementById('remoteUrl').value
         };
-        localStorage.setItem(getStorageKey(), JSON.stringify(formData));
+        const json = JSON.stringify(formData);
+        localStorage.setItem(getStorageKey(), json);
+        // Always mirror to the base key so loadFormValues restores the latest
+        // state on page load regardless of whether a project name was set.
+        localStorage.setItem(STORAGE_KEY, json);
     }
 
     function loadFormValues() {
