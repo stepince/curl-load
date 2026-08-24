@@ -12,6 +12,7 @@ let outputMode = 'text';
 let lastFinishedData = null;
 let outputCollapsed = true;
 let k6DashWin = null;
+let initialLoadDone = false;
 const selectedRunIds = new Set();
 const runStatusMap   = new Map(); // runId → status, kept current after each renderHistory
 
@@ -246,6 +247,13 @@ async function loadHistory() {
       $('detailOutput').textContent = 'Run in progress…';
       showLiveDashboardLink(activeRun.id);
       startPolling();
+    }
+
+    if (!initialLoadDone) {
+      initialLoadDone = true;
+      if (runs.length === 1 && !currentRunId) {
+        focusRun(runs[0].id);
+      }
     }
   } catch { /* network error */ }
 }

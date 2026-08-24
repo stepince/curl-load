@@ -989,19 +989,28 @@
 
     function drawLatencyChart(points) {
         try { localStorage.setItem('lastChartPoints', JSON.stringify(points)); } catch {}
-        // Bucket into 1-second intervals and average each bucket
-        const buckets = new Map();
-        for (const { t, v } of points) {
-            const sec = Math.floor(t / 1000);
-            if (!buckets.has(sec)) buckets.set(sec, []);
-            buckets.get(sec).push(v);
+
+        // Support old {t,v} format (cached in localStorage) and new {t,avg,p95,p99}
+        const legacy = points.length > 0 && 'v' in points[0];
+        const sorted = [...points].sort((a, b) => a.t - b.t);
+        const labels = sorted.map(p => `${Math.floor(p.t / 1000)}s`);
+
+        let avgData, p95Data, p99Data;
+        if (legacy) {
+            const bkts = new Map();
+            for (const { t, v } of points) {
+                const s = Math.floor(t / 1000);
+                if (!bkts.has(s)) bkts.set(s, []);
+                bkts.get(s).push(v);
+            }
+            const secs = [...bkts.keys()].sort((a, b) => a - b);
+            avgData = secs.map(s => Math.round(bkts.get(s).reduce((a, b) => a + b, 0) / bkts.get(s).length));
+            p95Data = avgData; p99Data = avgData;
+        } else {
+            avgData = sorted.map(p => Math.round(p.avg));
+            p95Data = sorted.map(p => Math.round(p.p95));
+            p99Data = sorted.map(p => Math.round(p.p99));
         }
-        const secs = [...buckets.keys()].sort((a, b) => a - b);
-        const labels = secs.map(s => `${s}s`);
-        const data   = secs.map(s => {
-            const vals = buckets.get(s);
-            return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-        });
 
         const chartCtx = document.getElementById('latencyChart').getContext('2d');
         if (!latencyChart) {
@@ -1009,31 +1018,58 @@
                 type: 'line',
                 data: {
                     labels,
-                    datasets: [{
-                        label: 'Avg Latency (ms)',
-                        data,
-                        borderColor: 'rgba(75, 192, 192, 1)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        fill: true,
-                        pointRadius: 1,
-                        tension: 0.2
-                    }]
+                    datasets: [
+                        { label: 'Avg', data: avgData, borderColor: 'rgba(75,192,192,1)',  backgroundColor: 'rgba(75,192,192,0.15)', fill: true, pointRadius: 1, tension: 0.2 },
+                        { label: 'p95', data: p95Data, borderColor: 'rgba(251,191,36,1)',  backgroundColor: 'rgba(251,191,36,0.1)',  fill: true, pointRadius: 1, tension: 0.2 },
+                        { label: 'p99', data: p99Data, borderColor: 'rgba(239,68,68,1)',   backgroundColor: 'rgba(239,68,68,0.1)',   fill: true, pointRadius: 1, tension: 0.2 },
+                    ],
                 },
                 options: {
                     responsive: true,
                     scales: {
                         x: { title: { display: true, text: 'Time (s)' } },
-                        y: { title: { display: true, text: 'Latency (ms)' } }
+                        y: { title: { display: true, text: 'Latency (ms)' } },
                     },
                     plugins: {
-                        legend: { display: false },
-                        tooltip: { mode: 'index', intersect: false }
-                    }
-                }
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#94a3b8',
+                                boxWidth: 12,
+                                generateLabels(chart) {
+                                    return chart.data.datasets.map((ds, i) => ({
+                                        text: ds.label,
+                                        fontColor: '#94a3b8',
+                                        fillStyle: chart.getDatasetMeta(i).hidden ? 'transparent' : ds.borderColor,
+                                        strokeStyle: ds.borderColor,
+                                        lineWidth: 2,
+                                        hidden: chart.getDatasetMeta(i).hidden,
+                                        index: i,
+                                        datasetIndex: i,
+                                    }));
+                                },
+                            },
+                        },
+                        tooltip: { mode: 'index', intersect: false },
+                    },
+                },
             });
         } else {
+            // Update data in-place so Chart.js retains per-dataset hidden state
+            // (replacing the datasets array loses any legend-click hide/show state)
             latencyChart.data.labels = labels;
-            latencyChart.data.datasets[0].data = data;
+            if (latencyChart.data.datasets.length === 3) {
+                latencyChart.data.datasets[0].data = avgData;
+                latencyChart.data.datasets[1].data = p95Data;
+                latencyChart.data.datasets[2].data = p99Data;
+            } else {
+                // Reinitialise if dataset count changed (e.g. legacy→new format transition)
+                latencyChart.data.datasets = [
+                    { label: 'Avg', data: avgData, borderColor: 'rgba(75,192,192,1)',  backgroundColor: 'rgba(75,192,192,0.15)', fill: true, pointRadius: 1, tension: 0.2 },
+                    { label: 'p95', data: p95Data, borderColor: 'rgba(251,191,36,1)',  backgroundColor: 'rgba(251,191,36,0.1)',  fill: true, pointRadius: 1, tension: 0.2 },
+                    { label: 'p99', data: p99Data, borderColor: 'rgba(239,68,68,1)',   backgroundColor: 'rgba(239,68,68,0.1)',   fill: true, pointRadius: 1, tension: 0.2 },
+                ];
+            }
             latencyChart.update();
         }
     }

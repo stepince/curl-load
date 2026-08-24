@@ -118,9 +118,20 @@ runsRouter.get('/:id/metrics', async (req, res) => {
         if (!buckets.has(sec)) buckets.set(sec, []);
         buckets.get(sec).push(value);
       }
+      // Cumulative p95/p99: percentiles over all requests seen so far.
+      // Per-bucket percentiles are meaningless with typical VU counts (10-50
+      // requests/sec gives the same index for p95 and p99).
+      const cumulative = [];
       for (const [sec, vals] of [...buckets.entries()].sort((a, b) => a[0] - b[0])) {
+        cumulative.push(...vals);
+        const cumSorted = [...cumulative].sort((a, b) => a - b);
         const bucketAvg = vals.reduce((s, v) => s + v, 0) / vals.length;
-        timeseries.push({ t: sec * 1000, v: Math.round(bucketAvg) });
+        timeseries.push({
+          t:   sec * 1000,
+          avg: Math.round(bucketAvg),
+          p95: Math.round(cumSorted[Math.floor((cumSorted.length - 1) * 0.95)]),
+          p99: Math.round(cumSorted[Math.floor((cumSorted.length - 1) * 0.99)]),
+        });
       }
     }
 
