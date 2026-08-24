@@ -1,4 +1,4 @@
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -49,7 +49,7 @@ RUN for f in /app/build/public/*.html; do \
   (echo "<!--!"; cat /app/LICENSE; echo "-->"; cat "$f") > /tmp/out && mv /tmp/out "$f"; \
 done
 
-FROM node:22-alpine
+FROM node:24-alpine
 
 RUN apk add --no-cache curl bash chromium \
   && curl -L https://github.com/grafana/k6/releases/download/v0.49.0/k6-v0.49.0-linux-amd64.tar.gz \

@@ -67,9 +67,7 @@ export async function startRun(run) {
 
   updateStatus(id, 'running');
 
-  // Watch for summary.json — k6's handleSummary writes it the moment the test
-  // finishes, before the dashboard HTML is exported.  Updating status here means
-  // the UI reflects "finished" promptly without waiting for the export to complete.
+  // Watch for summary.json — k6's handleSummary writes it once the test finishes.
   const summaryPath = path.join(dir, 'summary.json');
   const dirWatcher = fsWatch(dir, async (event, filename) => {
     if (filename !== 'summary.json') return;
@@ -112,15 +110,14 @@ export async function startRun(run) {
 
   processes.set(id, k6);
 
-  // Watchdog — force-kill k6 if it doesn't exit within duration + gracefulStop + 30s buffer
+  // Watchdog — last-resort kill if k6 hangs during post-test cleanup
   const GRACEFUL_STOP_MS = 5000;
-  const BUFFER_MS        = 30000;
+  const BUFFER_MS        = 120000;
   const watchdogMs = parseDurationMs(config.duration) + GRACEFUL_STOP_MS + BUFFER_MS;
   const watchdog = setTimeout(() => {
     if (processes.has(id)) {
       console.warn(`[run ${id}] watchdog triggered after ${watchdogMs}ms — force killing k6`);
       k6.kill('SIGKILL');
-      updateStatus(id, 'failed', { exitCode: null });
     }
   }, watchdogMs);
 
@@ -157,11 +154,16 @@ export async function startRun(run) {
     if (currentRun.status === 'stopping') {
       updateStatus(id, 'stopped', { exitCode: code });
     } else if (currentRun.status === 'running') {
-      // summary.json watcher didn't fire — test ended without writing summary
       if (code === 0) {
         updateStatus(id, 'finished', { exitCode: 0 });
       } else {
-        updateStatus(id, 'failed', { exitCode: code });
+        // Non-zero exit or SIGKILL — check if handleSummary still managed to write summary.json
+        try {
+          await access(summaryPath);
+          updateStatus(id, 'finished', { exitCode: code });
+        } catch {
+          updateStatus(id, 'failed', { exitCode: code });
+        }
       }
     } else {
       // Already in terminal state (set by summary.json watcher) — record exit code

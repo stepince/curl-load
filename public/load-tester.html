@@ -213,9 +213,9 @@
     <a href="#" onclick="window.open('/','curl-load-dashboard'); return false;"
        style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load dashboard →</a>
 
-    <!-- Documentation -->
-    <a href="documentation.html" target="_blank" title="Documentation"
-       style="display:inline-flex; align-items:center; margin-left:0.6rem; color:#64748b; text-decoration:none;"
+    <!-- Documentation + Contact + Bug Report (RIGHT SIDE) -->
+    <a href="documentation.html" target="curl-load-docs" title="Documentation"
+       style="display:inline-flex; align-items:center; margin-left:auto; color:#64748b; text-decoration:none;"
        onmouseover="this.style.color='#7dd3fc'"
        onmouseout="this.style.color='#64748b'">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
@@ -226,11 +226,10 @@
         </svg>
     </a>
 
-    <!-- Contact + Bug Report (RIGHT SIDE) -->
     <a href="mailto:support@curl-load.com"
        target="_blank"
        title="Contact support"
-       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:auto;
+       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;
           color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:500;"
        onmouseover="this.style.opacity=0.8"
        onmouseout="this.style.opacity=1">
@@ -404,7 +403,7 @@
 <div class="card" style="padding:0.85rem 1.25rem;">
     <div class="remote-form-row" style="margin-bottom:0.75rem;">
         <label for="remoteUrl">Runner URL:</label>
-        <input type="text" id="remoteUrl" placeholder="http://localhost:3000" style="flex:1; margin:0;" />
+        <input type="text" id="remoteUrl" placeholder="Defaults to this page's host" style="flex:1; margin:0;" />
     </div>
     <button id="runSingleBtn" onclick="runSingleTest()">Run Single</button>
     <button id="runTestBtn" onclick="executeRemoteTest()">Run Test</button>
@@ -417,7 +416,7 @@
     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.75rem;">
         <span class="section-title" style="margin:0;">Status</span>
         <span id="status" style="font-size:0.85rem; color:#94a3b8;">Idle</span>
-        <a id="remoteDashboardLink" href="#"
+        <a id="lastRunDashboardLink" href="#"
            style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
            onmouseout="this.style.textDecoration='none'"
@@ -434,8 +433,16 @@
 </div>
 
 <script>
+    // Default the runner to whatever host served this page, rather than a
+    // hardcoded localhost — so a remote/k8s deployment targets itself by default.
+    function defaultRunnerUrl() {
+        return window.location.origin;
+    }
+
     let latencyChart = null;
     let cancelled = false;
+    let remoteRunId = null;
+    let remotePollInterval = null;
     const STORAGE_KEY = 'loadTesterFormData';
     const PROFILES_KEY = 'loadTester.profiles';
     const LAST_PROFILE_KEY = 'loadTester.lastProfile';
@@ -471,6 +478,12 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         loadFormValues();
+        restoreLastRunDashboard();
+        try {
+            const pts = JSON.parse(localStorage.getItem('lastChartPoints') || 'null');
+            if (pts?.length) drawLatencyChart(pts);
+        } catch {}
+        restoreActiveRun();
         const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'remoteUrl', 'authType', 'authToken', 'authUsername', 'authPassword'];
         fields.forEach(id => {
             const el = document.getElementById(id);
@@ -576,6 +589,94 @@
         return { method, url: url || '', headers, body };
     }
 
+    function setActiveRun(runnerUrl, runId) {
+        localStorage.setItem('activeRun', JSON.stringify({ runnerUrl, runId }));
+    }
+
+    function clearActiveRun() {
+        localStorage.removeItem('activeRun');
+    }
+
+    function startPolling(runnerUrl, runId) {
+        if (remotePollInterval) clearInterval(remotePollInterval);
+        remotePollInterval = setInterval(async () => {
+            try {
+                const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
+                const { status, startedAt } = await r.json();
+                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
+
+                if (['running', 'stopping'].includes(status)) {
+                    try {
+                        const mr = await fetch(`${runnerUrl}/runs/${runId}/metrics`);
+                        if (mr.ok) {
+                            const elapsedSec = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null;
+                            renderRemoteLiveReport(await mr.json(), elapsedSec);
+                        }
+                    } catch { /* transient */ }
+                }
+
+                if (['finished', 'failed', 'stopped'].includes(status)) {
+                    clearInterval(remotePollInterval);
+                    clearActiveRun();
+                    setRunState(null);
+                    await loadRemoteResults(runnerUrl, runId, status);
+                }
+            } catch { /* transient — keep polling */ }
+        }, 1500);
+    }
+
+    async function restoreActiveRun() {
+        let stored;
+        try { stored = JSON.parse(localStorage.getItem('activeRun')); } catch {}
+        if (!stored?.runnerUrl || !stored?.runId) return;
+        const { runnerUrl, runId } = stored;
+        try {
+            const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
+            if (!r.ok) { clearActiveRun(); return; }
+            const { status } = await r.json();
+            if (['running', 'stopping', 'created'].includes(status)) {
+                remoteRunId = runId;
+                setRunState('test');
+                setLastRunDashboard(runnerUrl);
+                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
+                document.getElementById('results').textContent = `Resumed polling run ${runId}…\n`;
+                startPolling(runnerUrl, runId);
+            } else {
+                clearActiveRun();
+                await loadRemoteResults(runnerUrl, runId, status);
+            }
+        } catch { /* transient network error — leave activeRun so next refresh retries */ }
+    }
+
+    function setLastRunDashboard(runnerUrl) {
+        localStorage.setItem('lastRunnerUrl', runnerUrl);
+        const link = document.getElementById('lastRunDashboardLink');
+        link.dataset.url = runnerUrl;
+        link.style.display = 'inline';
+    }
+
+    function restoreLastRunDashboard() {
+        const url = localStorage.getItem('lastRunnerUrl');
+        if (!url) return;
+        const link = document.getElementById('lastRunDashboardLink');
+        link.dataset.url = url;
+        link.style.display = 'inline';
+    }
+
+    function resetRunDisplay() {
+        document.getElementById('report').innerHTML = `
+            <p><strong>Elapsed:</strong> —</p>
+            <p><strong>Total Requests:</strong> —</p>
+            <p><strong>Req/s:</strong> —</p>
+            <p><strong>Avg Latency:</strong> —</p>
+            <p><strong>p95 Latency:</strong> —</p>
+            <p><strong>p99 Latency:</strong> —</p>
+            <p><strong>Max Latency:</strong> —</p>
+            <p><strong>Error Rate:</strong> —</p>
+        `;
+        document.getElementById('results').textContent = '';
+    }
+
     function setRunState(mode) {
         const singleBtn = document.getElementById('runSingleBtn');
         const testBtn   = document.getElementById('runTestBtn');
@@ -587,11 +688,13 @@
 
     function cancelTest() {
         cancelled = true;
+        clearActiveRun();
+        if (remotePollInterval) clearInterval(remotePollInterval);
         setRunState(null);
         document.getElementById('status').textContent = 'Cancelled';
 
         if (remoteRunId) {
-            const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
+            const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
             fetch(`${runnerUrl}/runs/${remoteRunId}/stop`, { method: 'POST' })
                 .catch(() => {});
         }
@@ -814,11 +917,9 @@
         saveFormValues();
         setRunState('single');
         document.getElementById('status').textContent = 'Running Single…';
-        document.getElementById('report').innerHTML = '';
-        document.getElementById('results').textContent = '';
-        document.getElementById('remoteDashboardLink').style.display = 'none';
+        resetRunDisplay();
 
-        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
+        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
 
         let parsed;
         try {
@@ -856,9 +957,8 @@
             const run = await resp.json();
             runId = run.id;
             remoteRunId = runId;
-            const dashLink = document.getElementById('remoteDashboardLink');
-            dashLink.dataset.url = runnerUrl;
-            dashLink.style.display = 'inline';
+            setLastRunDashboard(runnerUrl);
+            setActiveRun(runnerUrl, runId);
         } catch (err) {
             document.getElementById('status').textContent = `Runner error: ${err.message}`;
             setRunState(null);
@@ -867,20 +967,7 @@
 
         document.getElementById('status').textContent = `Running on ${runnerUrl}…`;
         document.getElementById('results').textContent = `Run submitted. ID: ${runId}\nWaiting for result…\n`;
-
-        remotePollInterval = setInterval(async () => {
-            try {
-                const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
-                const { status } = await r.json();
-                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
-
-                if (['finished', 'failed', 'stopped'].includes(status)) {
-                    clearInterval(remotePollInterval);
-                    setRunState(null);
-                    await loadRemoteResults(runnerUrl, runId, status);
-                }
-            } catch { /* transient */ }
-        }, 1000);
+        startPolling(runnerUrl, runId);
     }
 
     function resetForm() {
@@ -901,6 +988,7 @@
     }
 
     function drawLatencyChart(points) {
+        try { localStorage.setItem('lastChartPoints', JSON.stringify(points)); } catch {}
         // Bucket into 1-second intervals and average each bucket
         const buckets = new Map();
         for (const { t, v } of points) {
@@ -1315,14 +1403,11 @@
 
     // ─────────────────────────────────────────────────────────────────────────
 
-    let remoteRunId = null;
-    let remotePollInterval = null;
-
     async function executeRemoteTest() {
         const curlTextRaw = document.getElementById('curlInput').value.trim();
         if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
 
-        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || 'http://localhost:3000').replace(/\/$/, '');
+        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
         const durationSec = parseInt(document.getElementById('duration').value) || 30;
         const peakUsers   = parseInt(document.getElementById('users').value)    || 1;
 
@@ -1338,8 +1423,7 @@
         saveFormValues();
         setRunState('test');
         document.getElementById('status').textContent = `Submitting to ${runnerUrl}…`;
-        document.getElementById('report').innerHTML  = '';
-        document.getElementById('results').textContent = '';
+        resetRunDisplay();
         if (remotePollInterval) clearInterval(remotePollInterval);
 
         let runId;
@@ -1368,11 +1452,8 @@
             const run = await resp.json();
             runId = run.id;
             remoteRunId = runId;
-
-            document.getElementById('report').innerHTML = '';
-            const dashLink = document.getElementById('remoteDashboardLink');
-            dashLink.dataset.url = runnerUrl;
-            dashLink.style.display = 'inline';
+            setLastRunDashboard(runnerUrl);
+            setActiveRun(runnerUrl, runId);
         } catch (err) {
             document.getElementById('status').textContent = `Runner error: ${err.message}`;
             setRunState(null);
@@ -1381,30 +1462,7 @@
 
         document.getElementById('status').textContent = `Running on ${runnerUrl} — ID: ${runId}`;
         document.getElementById('results').textContent = `Run submitted.\nRun ID: ${runId}\nPolling for results…\n`;
-
-        remotePollInterval = setInterval(async () => {
-            try {
-                const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
-                const { status, startedAt } = await r.json();
-                document.getElementById('status').textContent = `${status} — ID: ${runId}`;
-
-                if (['running', 'stopping'].includes(status)) {
-                    try {
-                        const mr = await fetch(`${runnerUrl}/runs/${runId}/metrics`);
-                        if (mr.ok) {
-                            const elapsedSec = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null;
-                            renderRemoteLiveReport(await mr.json(), elapsedSec);
-                        }
-                    } catch { /* transient */ }
-                }
-
-                if (['finished', 'failed', 'stopped'].includes(status)) {
-                    clearInterval(remotePollInterval);
-                    setRunState(null);
-                    await loadRemoteResults(runnerUrl, runId, status);
-                }
-            } catch { /* transient — keep polling */ }
-        }, 1500);
+        startPolling(runnerUrl, runId);
     }
 
     function renderRemoteLiveReport(m, elapsedSec) {
@@ -1468,6 +1526,9 @@
                     } catch { /* chart stays as-is from last live update */ }
 
                     document.getElementById('results').textContent = '';
+                    if (run.dashboardReport) {
+                        window.open(`${runnerUrl}${run.dashboardReport}`, 'curl-load-k6-dashboard');
+                    }
                     return;
                 }
             } catch { /* fall through */ }

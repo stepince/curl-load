@@ -693,6 +693,7 @@ function renderOutput() {
   if (dashboardReport) {
     link.dataset.url = dashboardReport;
     link.style.display = 'inline';
+    window.open(dashboardReport, 'curl-load-k6-dashboard');
   } else {
     link.style.display = 'none';
   }
