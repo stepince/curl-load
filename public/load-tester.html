@@ -403,7 +403,7 @@
 <div class="card" style="padding:0.85rem 1.25rem;">
     <div class="remote-form-row" style="margin-bottom:0.75rem;">
         <label for="remoteUrl">Runner URL:</label>
-        <input type="text" id="remoteUrl" placeholder="Defaults to this page's host" style="flex:1; margin:0;" />
+        <input type="text" id="remoteUrl" placeholder="http://localhost:3000" required style="flex:1; margin:0;" />
     </div>
     <button id="runSingleBtn" onclick="runSingleTest()">Run Single</button>
     <button id="runTestBtn" onclick="executeRemoteTest()">Run Test</button>
@@ -463,7 +463,7 @@
         authPassword: '',
         headers: [],
         variables: [],
-        remoteUrl: '',
+        remoteUrl: window.location.origin,
         remoteExpanded: false
     };
 
@@ -602,6 +602,12 @@
         remotePollInterval = setInterval(async () => {
             try {
                 const r = await fetch(`${runnerUrl}/runs/${runId}/status`);
+                if (!r.ok) {
+                    clearInterval(remotePollInterval);
+                    clearActiveRun();
+                    setRunState(null);
+                    return;
+                }
                 const { status, startedAt } = await r.json();
                 document.getElementById('status').textContent = `${status} — ID: ${runId}`;
 
@@ -694,7 +700,8 @@
         document.getElementById('status').textContent = 'Cancelled';
 
         if (remoteRunId) {
-            const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
+            const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+            if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
             fetch(`${runnerUrl}/runs/${remoteRunId}/stop`, { method: 'POST' })
                 .catch(() => {});
         }
@@ -880,7 +887,7 @@
         document.getElementById('validationExpression').value = formData.validationExpression || '';
         onResponseTypeChange();
 
-        document.getElementById('remoteUrl').value = formData.remoteUrl || formData.remoteHost && `http://${formData.remoteHost}:${formData.remotePort || '3000'}` || '';
+        document.getElementById('remoteUrl').value = formData.remoteUrl || (formData.remoteHost ? `http://${formData.remoteHost}:${formData.remotePort || '3000'}` : window.location.origin);
 
         document.getElementById('authType').value     = formData.authType     || 'none';
         document.getElementById('authToken').value    = formData.authToken    || '';
@@ -923,7 +930,8 @@
         document.getElementById('status').textContent = 'Running Single…';
         resetRunDisplay();
 
-        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
+        const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+        if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
 
         let parsed;
         try {
@@ -1447,7 +1455,8 @@
         const curlTextRaw = document.getElementById('curlInput').value.trim();
         if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
 
-        const runnerUrl = (document.getElementById('remoteUrl').value.trim() || defaultRunnerUrl()).replace(/\/$/, '');
+        const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+        if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
         const durationSec = parseInt(document.getElementById('duration').value) || 30;
         const peakUsers   = parseInt(document.getElementById('users').value)    || 1;
 
