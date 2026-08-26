@@ -476,6 +476,48 @@ CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 100 | .d
   <p class="tip">Tip: The runner persists run history across image updates using a Docker named volume, so your baseline Run ID stays valid after deployments.</p>
 </div>
 
+<div class="card">
+  <h2>AI Skills</h2>
+  <p>Skills are markdown files that teach any AI assistant how to drive curl-load via its REST API. Instead of building LLM analysis into the app, skills keep the tool lightweight and model-agnostic — the AI reads the skill, then calls the API directly.</p>
+
+  <hr class="divider">
+
+  <h3>Getting the skills</h3>
+  <ol>
+    <li>Open the workbench at <code>/load-tester.html</code></li>
+    <li>Click the <b>Settings</b> button in the top-right header</li>
+    <li>Download the skill file(s) you need</li>
+    <li>Load the downloaded <code>.md</code> file into your AI assistant as a skill</li>
+  </ol>
+  <p>Skills are also served directly by the runner:</p>
+  <pre><code>GET /skills/workbench.md
+GET /skills/dashboard.md</code></pre>
+
+  <hr class="divider">
+
+  <h3>Workbench skill</h3>
+  <p>Covers the full workbench workflow: profile management, form field IDs, running load tests and single requests via the REST API, and reading results.</p>
+  <p><b>Example prompts:</b></p>
+  <ul>
+    <li>"Create a profile named smoke-test targeting https://api.example.com with 10 users for 60 seconds"</li>
+    <li>"Run a load test with the current settings and report back the p95 latency and error rate"</li>
+    <li>"Increase users to 50 and re-run, then compare the results"</li>
+  </ul>
+
+  <hr class="divider">
+
+  <h3>Dashboard skill</h3>
+  <p>Covers the dashboard workflow: listing runs, reading metrics from the summary API, generating comparison PDF reports, and interpreting results.</p>
+  <p><b>Example prompts:</b></p>
+  <ul>
+    <li>"Compare the last 3 finished runs and summarize the performance trend"</li>
+    <li>"Find any runs where the error rate exceeded 1% and report their names and timestamps"</li>
+    <li>"Generate a comparison PDF for runs named smoke-test"</li>
+  </ul>
+
+  <p class="tip">Tip: The dashboard skill uses <code>POST /runs/compare/report.pdf</code> to generate multi-run comparison reports programmatically — no need to select runs in the UI.</p>
+</div>
+
 <div class="warning">
   ⚠️ <b>Safety:</b> This tool generates load. Be careful when running against production systems.
 </div>

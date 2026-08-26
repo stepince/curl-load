@@ -3,9 +3,13 @@
 // curl-load web UI — vanilla JS, no frameworks
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { runsRouter } from './src/routes/runs.js';
 import { proxyRouter } from './src/routes/proxy.js';
 import { getRun, getActiveDashboardPort } from './src/services/run-store.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -69,6 +73,23 @@ app.use('/runs/:id/dashboard/live', (req, res, next) => {
 
 app.use('/runs', runsRouter);
 app.use('/proxy', proxyRouter);
+
+// Serve Claude-in-Chrome skill files
+app.use('/skills', express.static(join(__dirname, 'skills')));
+
+// Machine-readable app metadata for Claude-in-Chrome
+app.get('/app-info', (_req, res) => res.json({
+  name: 'curl-load',
+  skills: {
+    workbench: '/skills/workbench.md',
+    dashboard: '/skills/dashboard.md',
+  },
+  api: {
+    runs:    'GET/POST /runs',
+    proxy:   'POST /proxy',
+    compare: 'POST /runs/compare/report.pdf',
+  },
+}));
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
