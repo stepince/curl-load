@@ -60,6 +60,10 @@ export async function startRun(run) {
   // Ensure the run output directory exists
   await mkdir(dir, { recursive: true });
 
+  // Write client cert files if provided
+  if (config.clientCert?.cert) await writeFile(path.join(dir, 'client.crt'), config.clientCert.cert, 'utf8');
+  if (config.clientCert?.key)  await writeFile(path.join(dir, 'client.key'), config.clientCert.key,  'utf8');
+
   // Generate and write the k6 script
   const scriptPath = path.join(dir, 'script.js');
   const scriptSource = generateScript(config, dir);

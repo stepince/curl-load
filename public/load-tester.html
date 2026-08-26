@@ -173,15 +173,16 @@
         .header-name  { flex: 1; }
         .header-value { flex: 2; }
 
-        #authRow {
+        #authRow, #tlsRow {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             flex-wrap: wrap;
             margin-bottom: 0.6rem;
         }
-        #authRow > label { margin: 0; white-space: nowrap; }
+        #authRow > label, #tlsRow > label { margin: 0; white-space: nowrap; }
         #authRow select  { width: auto; margin: 0; }
+        #tlsRow input[type="file"] { margin: 0; font-size: 0.78rem; }
         #authToken, #authUsername, #authPassword {
             margin: 0; flex: 1; min-width: 120px; display: none;
         }
@@ -209,9 +210,9 @@
 </head>
 <body onload="window.name='curl-load-workbench'">
 <h1 style="display:flex; align-items:center;">
-    <span>curl-load workbench</span>
+    <span>workbench</span>
     <a href="#" onclick="window.open('/','curl-load-dashboard'); return false;"
-       style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">curl-load dashboard →</a>
+       style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">dashboard →</a>
 
     <!-- Documentation + Contact + Bug Report (RIGHT SIDE) -->
     <a href="documentation.html" target="curl-load-docs" title="Documentation"
@@ -384,6 +385,17 @@
         <label for="authPassword" class="sr-only">Password</label>
         <input id="authPassword" type="password" placeholder="Password" oninput="saveFormValues()" />
     </div>
+    <div id="tlsRow">
+        <label style="font-size:0.8rem; color:#94a3b8;">TLS:</label>
+        <span style="font-size:0.78rem; color:#64748b;">Cert:</span>
+        <input type="file" id="tlsCertFile" accept=".crt,.pem,.cer" onchange="loadTlsCertFile(this,'cert')" />
+        <span id="tlsCertName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
+        <button id="tlsCertClear" onclick="clearTlsCert('cert')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
+        <span style="font-size:0.78rem; color:#64748b;">Key:</span>
+        <input type="file" id="tlsKeyFile" accept=".key,.pem" onchange="loadTlsCertFile(this,'key')" />
+        <span id="tlsKeyName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
+        <button id="tlsKeyClear" onclick="clearTlsCert('key')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
+    </div>
     <div id="headersContainer"></div>
 </div>
 
@@ -420,7 +432,15 @@
            style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
            onmouseout="this.style.textDecoration='none'"
-           onclick="window.open(this.dataset.url,'curl-load-dashboard'); return false;">curl-load dashboard ↗</a>
+           onclick="window.open(this.dataset.url,'curl-load-dashboard'); return false;">dashboard ↗</a>
+        <a id="certDownloadLink" href="#" download="client.crt"
+           style="display:none; font-size:0.78rem; color:#94a3b8; text-decoration:none; cursor:pointer;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">cert ↓</a>
+        <a id="keyDownloadLink" href="#" download="client.key"
+           style="display:none; font-size:0.78rem; color:#94a3b8; text-decoration:none; cursor:pointer;"
+           onmouseover="this.style.textDecoration='underline'"
+           onmouseout="this.style.textDecoration='none'">key ↓</a>
     </div>
     <div id="report"></div>
     <pre id="results" style="margin-top:0.75rem;"></pre>
@@ -443,6 +463,7 @@
     let cancelled = false;
     let remoteRunId = null;
     let remotePollInterval = null;
+    let tlsCert = { cert: null, key: null };
     const STORAGE_KEY = 'loadTesterFormData';
     const PROFILES_KEY = 'loadTester.profiles';
     const LAST_PROFILE_KEY = 'loadTester.lastProfile';
@@ -472,7 +493,8 @@
             user: userId,
             iteration,
             timestamp: Date.now(),
-            isoTimestamp: new Date().toISOString()
+            isoTimestamp: new Date().toISOString(),
+            hostname: window.location.hostname,
         };
     }
 
@@ -724,7 +746,7 @@
         div.innerHTML = `
         <input id="varName_${idx}" name="varName_${idx}" placeholder="Variable name" value="${escapeHtml(name)}" style="flex: 1;" />
         <input id="varValue_${idx}" name="varValue_${idx}" class="variable-value" placeholder="Value" value="${escapeHtml(value)}" style="flex: 2;" />
-        <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv" onchange="loadFileToVariable(this)" style="flex: 1;" />
+        <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv,.json" onchange="loadFileToVariable(this)" style="flex: 1;" />
         <select id="varType_${idx}" name="varType_${idx}" class="variable-type" style="flex: 1;width:100px;">
             <option value="constant">Constant</option>
             <option value="sequential">Sequential</option>
@@ -759,14 +781,28 @@
         saveFormValues();
     }
 
+    const fileTypeParsers = {
+        json: (content) => {
+            const parsed = JSON.parse(content);
+            return Array.isArray(parsed) ? parsed.map(String) : [];
+        },
+        csv:  (content) => content.split(','),
+        txt:  (content) => content.split(/\r?\n/),
+    };
+
     function loadFileToVariable(input) {
         const file = input.files[0];
         if (!file) return;
 
+        const ext = file.name.split('.').pop().toLowerCase();
+        const parser = fileTypeParsers[ext] || fileTypeParsers.txt;
+
         const reader = new FileReader();
         reader.onload = () => {
-            const content = reader.result;
-            const values = content.includes(',') ? content.split(',') : content.split(/\r?\n/);
+            const content = reader.result.trim();
+            let values;
+            try   { values = parser(content); }
+            catch { values = []; }
             const cleanValues = values.map(v => v.trim()).filter(Boolean).join('\n');
 
             const row = input.parentNode;
@@ -789,6 +825,36 @@
             }
         };
         reader.readAsText(file);
+    }
+
+    function loadTlsCertFile(input, field) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            tlsCert[field] = reader.result;
+            const nameEl  = document.getElementById(field === 'cert' ? 'tlsCertName' : 'tlsKeyName');
+            const clearEl = document.getElementById(field === 'cert' ? 'tlsCertClear' : 'tlsKeyClear');
+            nameEl.textContent = file.name;
+            nameEl.style.display = 'inline';
+            clearEl.style.display = 'inline';
+        };
+        reader.readAsText(file);
+    }
+
+    function clearTlsCert(field) {
+        tlsCert[field] = null;
+        const fileEl  = document.getElementById(field === 'cert' ? 'tlsCertFile' : 'tlsKeyFile');
+        const nameEl  = document.getElementById(field === 'cert' ? 'tlsCertName' : 'tlsKeyName');
+        const clearEl = document.getElementById(field === 'cert' ? 'tlsCertClear' : 'tlsKeyClear');
+        fileEl.value = '';
+        nameEl.style.display = 'none';
+        clearEl.style.display = 'none';
+    }
+
+    function resetTlsCert() {
+        clearTlsCert('cert');
+        clearTlsCert('key');
     }
 
     function substituteVariables(text, variableDefs = {}, options = {}) {
@@ -915,7 +981,7 @@
                      <option value="sequential" ${type === 'sequential' ? 'selected' : ''}>Sequential</option>
                      <option value="random" ${type === 'random' ? 'selected' : ''}>Random</option>
                 </select>
-                <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv" onchange="loadFileToVariable(this)" style="flex: 1;" />
+                <input id="varFile_${idx}" name="varFile_${idx}" type="file" accept=".txt,.csv,.json" onchange="loadFileToVariable(this)" style="flex: 1;" />
                 <button onclick="deleteVariable(this)" title="Remove variable" style="background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.25rem; cursor:pointer; line-height:1; flex-shrink:0; align-self:flex-end;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
             `;
             document.getElementById('variables').appendChild(div);
@@ -960,6 +1026,7 @@
                     pause:                0,
                     responseContentType:  document.getElementById('responseContentType').value,
                     validationExpression: document.getElementById('validationExpression').value.trim(),
+                    clientCert:           (tlsCert.cert && tlsCert.key) ? tlsCert : undefined,
                 }),
             });
             if (!resp.ok) {
@@ -997,6 +1064,7 @@
         // No project — reset to defaults
         localStorage.removeItem(STORAGE_KEY);
         loadFormValues();
+        resetTlsCert();
     }
 
     function drawLatencyChart(points) {
@@ -1150,6 +1218,7 @@
         onAuthTypeChange();
         document.getElementById('headersContainer').innerHTML = '';
         document.getElementById('variables').innerHTML = '';
+        resetTlsCert();
         document.getElementById('projectName').focus();
     }
 
@@ -1205,7 +1274,7 @@
         delete profiles[current];
         saveAllProfiles(profiles);
         refreshProfileDropdown();
-        loadProfile(); // clear form if deleted one was selected
+        addProfile();
     }
 
     // ── Auto Extract Variables ────────────────────────────────────────────────
@@ -1246,8 +1315,14 @@
                         result[k] = processObj(v);
                     } else {
                         const strVal = String(v);
-                        if (/^\$\{.+}$/.test(strVal)) {
-                            result[k] = strVal; // already templated
+                        const placeholderMatch = strVal.match(/^\$\{(\w+)}$/);
+                        if (placeholderMatch) {
+                            result[k] = strVal;
+                            const existingVarName = placeholderMatch[1];
+                            if (!existingNames.has(existingVarName)) {
+                                existingNames.add(existingVarName);
+                                vars.push({ name: existingVarName, value: '' });
+                            }
                         } else {
                             const varName = makeUniqueName(sanitizeVarName(k), existingNames);
                             existingNames.add(varName);
@@ -1301,14 +1376,21 @@
 
         // ── Query parameters (string replacement — no URL encoding) ───────────
         let newUrl = urlStr;
-        [...urlObj.searchParams.entries()]
-            .filter(([, v]) => !/^\$\{.+}$/.test(v))
-            .forEach(([key, value]) => {
+        [...urlObj.searchParams.entries()].forEach(([key, value]) => {
+            const placeholderMatch = value.match(/^\$\{(\w+)}$/);
+            if (placeholderMatch) {
+                const existingVarName = placeholderMatch[1];
+                if (!existingNames.has(existingVarName)) {
+                    existingNames.add(existingVarName);
+                    extracted.push({ name: existingVarName, value: '' });
+                }
+            } else {
                 const varName = makeUniqueName(sanitizeVarName(key), existingNames);
                 existingNames.add(varName);
                 extracted.push({ name: varName, value });
                 newUrl = replaceQueryParamInUrl(newUrl, key, '${' + varName + '}');
-            });
+            }
+        });
 
         // ── JSON body (optional) ──────────────────────────────────────────────
         let newBodyStr = null;
@@ -1492,6 +1574,7 @@
                     pause:                 parseFloat(document.getElementById('pause').value) || 0,
                     responseContentType:   document.getElementById('responseContentType').value,
                     validationExpression:  document.getElementById('validationExpression').value.trim(),
+                    clientCert:            (tlsCert.cert && tlsCert.key) ? tlsCert : undefined,
                 }),
             });
             if (!resp.ok) {
@@ -1573,6 +1656,18 @@
                             if (timeseries?.length) drawLatencyChart(timeseries);
                         }
                     } catch { /* chart stays as-is from last live update */ }
+
+                    const certLink = document.getElementById('certDownloadLink');
+                    const keyLink  = document.getElementById('keyDownloadLink');
+                    if (run.hasCert) {
+                        certLink.href = `${runnerUrl}/runs/${runId}/client.crt`;
+                        keyLink.href  = `${runnerUrl}/runs/${runId}/client.key`;
+                        certLink.style.display = 'inline';
+                        keyLink.style.display  = 'inline';
+                    } else {
+                        certLink.style.display = 'none';
+                        keyLink.style.display  = 'none';
+                    }
 
                     document.getElementById('results').textContent = '';
                     return;

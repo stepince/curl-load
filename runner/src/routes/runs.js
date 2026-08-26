@@ -23,13 +23,13 @@ runsRouter.get('/:id', (req, res) => {
 
 // POST /runs — start a new load test
 runsRouter.post('/', async (req, res) => {
-  const { url, method, headers, body, users, duration, name, variables, pause, timeout, responseContentType, validationExpression } = req.body;
+  const { url, method, headers, body, users, duration, iterations, name, variables, pause, timeout, responseContentType, validationExpression, clientCert } = req.body;
 
   if (!url) {
     return res.status(400).json({ error: 'url is required' });
   }
 
-  const run = createRun({ url, method, headers, body, users, duration, name, variables, pause, timeout, responseContentType, validationExpression });
+  const run = createRun({ url, method, headers, body, users, duration, iterations, name, variables, pause, timeout, responseContentType, validationExpression, clientCert });
 
   // Start k6 in the background — do not await
   startRun(run).catch((err) => {
@@ -204,6 +204,32 @@ runsRouter.get('/:id/report.pdf', async (req, res) => {
   } catch (err) {
     console.error(`[run ${run.id}] PDF generation failed:`, err.message);
     res.status(500).json({ error: 'PDF generation failed', detail: err.message });
+  }
+});
+
+// GET /runs/:id/client.crt — download the client certificate used for this run
+runsRouter.get('/:id/client.crt', async (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  try {
+    const content = await readFile(path.join(run.dir, 'client.crt'), 'utf8');
+    res.setHeader('Content-Disposition', 'attachment; filename="client.crt"');
+    res.type('application/x-pem-file').send(content);
+  } catch {
+    res.status(404).json({ error: 'certificate not available' });
+  }
+});
+
+// GET /runs/:id/client.key — download the private key used for this run
+runsRouter.get('/:id/client.key', async (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: 'run not found' });
+  try {
+    const content = await readFile(path.join(run.dir, 'client.key'), 'utf8');
+    res.setHeader('Content-Disposition', 'attachment; filename="client.key"');
+    res.type('application/x-pem-file').send(content);
+  } catch {
+    res.status(404).json({ error: 'key not available' });
   }
 });
 

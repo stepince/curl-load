@@ -199,7 +199,7 @@ async function loadOutput(status) {
           ['Duration', formatConfigDuration(run.config?.duration)],
           ['Status',   run.status || status],
         ]);
-        lastFinishedData = { runId: currentRunId, data, elapsedMs, stdout, dashboardReport };
+        lastFinishedData = { runId: currentRunId, data, elapsedMs, stdout, dashboardReport, hasCert: !!run.hasCert };
         renderOutput();
         return;
       }
@@ -514,7 +514,7 @@ async function selectRun(id) {
           const elapsedMs   = (run.startedAt && run.finishedAt)
             ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
           const dashboardReport = run.dashboardReport || null;
-          lastFinishedData  = { runId: id, data, elapsedMs, stdout, dashboardReport };
+          lastFinishedData  = { runId: id, data, elapsedMs, stdout, dashboardReport, hasCert: !!run.hasCert };
           renderOutput();
           return;
         }
@@ -723,6 +723,18 @@ function renderOutput() {
     if (k6DashWin && !k6DashWin.closed) k6DashWin.location.href = dashboardReport;
   } else {
     link.style.display = 'none';
+  }
+
+  const certLink = $('certLink');
+  const keyLink  = $('keyLink');
+  if (lastFinishedData?.hasCert && lastFinishedData?.runId) {
+    certLink.href = `/runs/${lastFinishedData.runId}/client.crt`;
+    keyLink.href  = `/runs/${lastFinishedData.runId}/client.key`;
+    certLink.style.display = 'inline';
+    keyLink.style.display  = 'inline';
+  } else {
+    certLink.style.display = 'none';
+    keyLink.style.display  = 'none';
   }
 
   const pdfLink = $('pdfLink');

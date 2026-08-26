@@ -78,11 +78,12 @@ export function createRun(config) {
       body: config.body || null,
       variables: config.variables || {},
       users: config.users || 10,
-      duration: config.duration || '30s',
+      ...(config.iterations ? { iterations: config.iterations } : { duration: config.duration || '30s' }),
       pause: config.pause ?? 1,
       timeout: config.timeout ?? 30,
       responseContentType:  config.responseContentType  || '*',
       validationExpression: config.validationExpression || '',
+      clientCert: (config.clientCert?.cert && config.clientCert?.key) ? config.clientCert : null,
     },
     dashboard: config.dashboard !== false,
     status: 'created',    // created → running → finished | failed | stopping → stopped
@@ -162,10 +163,12 @@ export async function deleteRun(id) {
  * (process reference, filesystem path) that must not leave the server.
  */
 export function serializeRun(run) {
+  const { clientCert: _cert, ...safeConfig } = run.config || {};
   return {
     id:           run.id,
     status:       run.status,
-    config:       run.config,
+    config:       safeConfig,
+    hasCert:      !!run.config?.clientCert,
     dashboard:         run.dashboard,
     dashboardLive:     run.dashboard && run.dashboardPort ? `/runs/${run.id}/dashboard/live/` : null,
     dashboardReport:   run.dashboard ? `/runs/${run.id}/dashboard` : null,

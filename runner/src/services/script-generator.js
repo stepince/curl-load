@@ -5,6 +5,9 @@
  * so we build them as template strings — no extra dependencies needed.
  */
 
+import { hostname as osHostname } from 'os';
+const RUNNER_HOSTNAME = osHostname();
+
 /**
  * @param {object} config
  * @param {string} config.url
@@ -17,7 +20,8 @@
  * @returns {string} k6 script source code
  */
 export function generateScript(config, runDir) {
-  const { url, method, headers, body, variables, users, duration, pause, timeout, responseContentType, validationExpression } = config;
+  const { url, method, headers, body, variables, users, duration, iterations, clientCert, pause, timeout, responseContentType, validationExpression } = config;
+  const urlHostname = (() => { try { return new URL(url).hostname; } catch { return url; } })();
 
   // Serialise headers as a JS object literal inside the script
   const headersLiteral = JSON.stringify(headers || {}, null, 2);
@@ -57,9 +61,10 @@ import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 export const options = {
   vus: ${users},
-  duration: '${duration}',
+  ${iterations ? `iterations: ${iterations},` : `duration: '${duration}',`}
   gracefulStop: '5s',
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
+  ${clientCert ? `tlsClientCertificates: [{ domains: ['${urlHostname}'], cert: open('./client.crt'), key: open('./client.key') }],` : ''}
 };
 
 const HEADERS      = ${headersLiteral};
@@ -75,6 +80,7 @@ function resolveTemplate(text) {
     if (name === 'iteration')    return String(__ITER);
     if (name === 'timestamp')    return String(Date.now());
     if (name === 'isoTimestamp') return new Date().toISOString();
+    if (name === 'hostname')     return '${RUNNER_HOSTNAME}';
     var def = VARIABLES[name];
     if (!def || !def.values || !def.values.length) return '';
     if (def.type === 'sequential') return String(def.values[__ITER % def.values.length]);
