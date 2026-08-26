@@ -1,11 +1,39 @@
 import { Router } from 'express';
 import { createRun, getRun, listRuns, serializeRun, deleteRun } from '../services/run-store.js';
 import { startRun, stopRun } from '../services/k6-runner.js';
-import { buildRunPdf } from '../services/pdf-generator.js';
+import { buildRunPdf, buildComparisonPdf } from '../services/pdf-generator.js';
 import { readFile } from 'fs/promises';
 import path from 'path';
 
 export const runsRouter = Router();
+
+// POST /runs/compare/report.pdf — comparison PDF for multiple runs
+runsRouter.post('/compare/report.pdf', async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length < 2) {
+    return res.status(400).json({ error: 'ids must be an array of at least 2 run IDs' });
+  }
+
+  const runsData = await Promise.all(ids.map(async id => {
+    const run = getRun(id);
+    if (!run) return { run: { id, config: {}, dir: '' }, summaryData: null };
+    let summaryData = null;
+    try {
+      const summaryPath = path.join(run.dir, 'summary.json');
+      summaryData = JSON.parse(await readFile(summaryPath, 'utf8'));
+    } catch { /* run may not have finished */ }
+    return { run, summaryData };
+  }));
+
+  try {
+    const pdfBytes = await buildComparisonPdf(runsData);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="curl-load-comparison.pdf"');
+    res.end(pdfBytes);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /runs — list all runs, newest first
 runsRouter.get('/', (req, res) => {

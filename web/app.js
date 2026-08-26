@@ -3,6 +3,31 @@
 // curl-load web UI — vanilla JS, no frameworks
 const API = '';
 
+function toggleCollapsible(label) {
+  label.classList.toggle('open');
+}
+
+function openWorkbench() {
+  if (lastFinishedData?.runId) {
+    fetch(`${API}/runs/${lastFinishedData.runId}`)
+      .then(r => r.json())
+      .then(data => {
+        localStorage.setItem('curl-load.workbench-prefill', JSON.stringify(data.config || {}));
+      })
+      .catch(() => {})
+      .finally(() => window.open('/load-tester.html', 'curl-load-workbench'));
+  } else {
+    window.open('/load-tester.html', 'curl-load-workbench');
+  }
+}
+
+function setCollapsible(fieldId, open) {
+  const el = $(fieldId);
+  if (!el) return;
+  const label = el.closest('.card')?.querySelector('.collapsible-label');
+  if (label) label.classList.toggle('open', open);
+}
+
 let currentRunId = null;
 let currentRunMeta = null; // { id, project, users, duration } for grid rendering during polls
 let varCounter = 0;
@@ -251,7 +276,11 @@ async function loadHistory() {
 
     if (!initialLoadDone) {
       initialLoadDone = true;
-      if (runs.length === 1 && !currentRunId) {
+      const hashId = window.location.hash.slice(1);
+      if (hashId && runs.some(r => r.id === hashId)) {
+        focusRun(hashId);
+        history.replaceState(null, '', window.location.pathname);
+      } else if (runs.length === 1 && !currentRunId) {
         focusRun(runs[0].id);
       }
     }
@@ -266,10 +295,17 @@ function populateForm(run) {
   $('duration').value    = c.duration || '30s';
   $('pause').value       = c.pause    ?? 1;
   $('timeout').value     = c.timeout  ?? 30;
-  $('headers').value     = c.headers && Object.keys(c.headers).length
+  const headersVal = c.headers && Object.keys(c.headers).length
     ? JSON.stringify(c.headers, null, 2) : '';
-  $('body').value        = c.body
-    ? JSON.stringify(c.body, null, 2) : '';
+  const bodyVal = c.body ? JSON.stringify(c.body, null, 2) : '';
+  $('headers').value = headersVal;
+  $('body').value    = bodyVal;
+  setCollapsible('headers', !!headersVal);
+  setCollapsible('body',    !!bodyVal);
+  $('responseContentType').value = c.responseContentType || '*';
+  $('validationExpression').value = c.validationExpression || '';
+  onResponseTypeChange();
+  setCollapsible('responseContentType', !!(c.responseContentType && c.responseContentType !== '*') || !!c.validationExpression);
   const methodEl = $('method');
   [...methodEl.options].forEach(o => { o.selected = o.value === c.method; });
   $('variables').innerHTML = '';
@@ -277,6 +313,7 @@ function populateForm(run) {
   Object.entries(c.variables || {}).forEach(([name, def]) => {
     addVariable(name, (def.values || []).join(', '), def.type);
   });
+  setCollapsible('variables', Object.keys(c.variables || {}).length > 0);
 }
 
 function renderHistory(runs) {
@@ -348,6 +385,7 @@ function updateBulkUI() {
   const selectAll = $('selectAllCheckbox');
   const deleteBtn = $('deleteSelectedBtn');
   const stopBtn   = $('stopSelectedBtn');
+  const compareBtn = $('comparePdfBtn');
 
   if (selectAll) {
     selectAll.checked       = total > 0 && checked === total;
@@ -363,6 +401,10 @@ function updateBulkUI() {
     ).length;
     stopBtn.style.display = activeCount > 0 ? 'inline-block' : 'none';
     stopBtn.textContent   = `Stop Selected (${activeCount})`;
+  }
+  if (compareBtn) {
+    compareBtn.style.display = checked > 1 ? 'inline-block' : 'none';
+    if (checked > 1) $('pdfLink').style.display = 'none';
   }
 }
 
@@ -431,10 +473,16 @@ function loadIntoForm(id) {
       $('users').value    = c.users    ?? 10;
       $('duration').value = c.duration || '30s';
       $('pause').value    = c.pause    ?? 1;
-      $('headers').value  = Object.keys(c.headers || {}).length
-        ? JSON.stringify(c.headers, null, 2) : '';
-      $('body').value     = c.body
-        ? JSON.stringify(c.body, null, 2) : '';
+      const headersVal = Object.keys(c.headers || {}).length ? JSON.stringify(c.headers, null, 2) : '';
+      const bodyVal    = c.body ? JSON.stringify(c.body, null, 2) : '';
+      $('headers').value = headersVal;
+      $('body').value    = bodyVal;
+      setCollapsible('headers', !!headersVal);
+      setCollapsible('body',    !!bodyVal);
+      $('responseContentType').value  = c.responseContentType || '*';
+      $('validationExpression').value = c.validationExpression || '';
+      onResponseTypeChange();
+      setCollapsible('responseContentType', !!(c.responseContentType && c.responseContentType !== '*') || !!c.validationExpression);
 
       // Restore variables
       $('variables').innerHTML = '';
@@ -442,6 +490,7 @@ function loadIntoForm(id) {
       Object.entries(c.variables || {}).forEach(([name, def]) => {
         addVariable(name, (def.values || []).join(', '), def.type);
       });
+      setCollapsible('variables', Object.keys(c.variables || {}).length > 0);
 
       // Select the matching method option
       const methodEl = $('method');
@@ -739,12 +788,12 @@ function renderOutput() {
 
   const pdfLink = $('pdfLink');
   if (lastFinishedData?.runId) {
-    pdfLink.style.display = 'inline';
+    pdfLink.style.display = 'inline-block';
     pdfLink.onclick = (e) => {
       e.preventDefault();
       if (pdfLink.dataset.loading) return;
       pdfLink.dataset.loading = '1';
-      pdfLink.style.color = '#64748b';
+      pdfLink.style.opacity = '0.5';
       pdfLink.style.pointerEvents = 'none';
       let dotCount = 0;
       const dotTimer = setInterval(() => {
@@ -766,7 +815,7 @@ function renderOutput() {
           clearInterval(dotTimer);
           delete pdfLink.dataset.loading;
           pdfLink.innerHTML = 'Download PDF ↓';
-          pdfLink.style.color = '#94a3b8';
+          pdfLink.style.opacity = '';
           pdfLink.style.pointerEvents = '';
         });
     };
@@ -813,6 +862,41 @@ function formatLiveMetrics(m, elapsedSec) {
     `Latency max    : ${m.max  != null ? m.max  + ' ms' : '—'}`,
     `Error rate     : ${m.errorRate != null ? m.errorRate + ' %' : '—'}`,
   ].join('\n');
+}
+
+// ─── Comparison PDF ──────────────────────────────────────────────────────────
+
+async function downloadComparisonPdf() {
+  const btn = $('comparePdfBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Generating…';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    const ids = [...selectedRunIds];
+    const resp = await fetch(`${API}/runs/compare/report.pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!resp.ok) {
+      const { error } = await resp.json().catch(() => ({}));
+      alert(`PDF generation failed: ${error || resp.statusText}`);
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: 'curl-load-comparison.pdf' });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(`PDF generation failed: ${err.message}`);
+  } finally {
+    btn.textContent = originalText;
+    btn.style.pointerEvents = '';
+  }
 }
 
 // ─── Comparison view ─────────────────────────────────────────────────────────

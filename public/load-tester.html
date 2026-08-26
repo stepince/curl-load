@@ -515,6 +515,16 @@
     window.addEventListener('DOMContentLoaded', () => {
         loadFormValues();
         restoreLastRunDashboard();
+
+        // Pre-fill from dashboard run selection
+        try {
+            const raw = localStorage.getItem('curl-load.workbench-prefill');
+            if (raw) {
+                localStorage.removeItem('curl-load.workbench-prefill');
+                applyDashboardPrefill(JSON.parse(raw));
+            }
+        } catch {}
+
         try {
             const pts = JSON.parse(localStorage.getItem('lastChartPoints') || 'null');
             if (pts?.length) drawLatencyChart(pts);
@@ -679,7 +689,7 @@
             if (['running', 'stopping', 'created'].includes(status)) {
                 remoteRunId = runId;
                 setRunState('test');
-                setLastRunDashboard(runnerUrl);
+                setLastRunDashboard(runnerUrl, runId);
                 document.getElementById('status').textContent = `${status} — ID: ${runId}`;
                 document.getElementById('results').textContent = `Resumed polling run ${runId}…\n`;
                 startPolling(runnerUrl, runId);
@@ -690,18 +700,20 @@
         } catch { /* transient network error — leave activeRun so next refresh retries */ }
     }
 
-    function setLastRunDashboard(runnerUrl) {
+    function setLastRunDashboard(runnerUrl, runId) {
         localStorage.setItem('lastRunnerUrl', runnerUrl);
+        if (runId) localStorage.setItem('lastRunId', runId);
         const link = document.getElementById('lastRunDashboardLink');
-        link.dataset.url = runnerUrl;
+        link.dataset.url = runId ? `${runnerUrl}/#${runId}` : runnerUrl;
         link.style.display = 'inline';
     }
 
     function restoreLastRunDashboard() {
         const url = localStorage.getItem('lastRunnerUrl');
         if (!url) return;
+        const runId = localStorage.getItem('lastRunId');
         const link = document.getElementById('lastRunDashboardLink');
-        link.dataset.url = url;
+        link.dataset.url = runId ? `${url}/#${runId}` : url;
         link.style.display = 'inline';
     }
 
@@ -956,6 +968,35 @@
         // Always mirror to the base key so loadFormValues restores the latest
         // state on page load regardless of whether a project name was set.
         localStorage.setItem(STORAGE_KEY, json);
+    }
+
+    function applyDashboardPrefill(c) {
+        // Reconstruct a curl command from the run config
+        const parts = ['curl'];
+        if (c.method && c.method !== 'GET') parts.push(`-X ${c.method}`);
+        if (c.url) parts.push(`'${c.url}'`);
+        for (const [k, v] of Object.entries(c.headers || {})) {
+            parts.push(`-H '${k}: ${v}'`);
+        }
+        if (c.body) {
+            const bodyStr = typeof c.body === 'string' ? c.body : JSON.stringify(c.body);
+            parts.push(`-d '${bodyStr}'`);
+        }
+        document.getElementById('curlInput').value = parts.join(' \\\n  ');
+
+        if (c.users)    document.getElementById('users').value    = c.users;
+        if (c.duration) {
+            document.getElementById('durationType').value = 'time';
+            document.getElementById('duration').value     = c.duration;
+        }
+        if (c.pause != null) document.getElementById('pause').value = c.pause;
+
+        document.getElementById('variables').innerHTML = '';
+        Object.entries(c.variables || {}).forEach(([name, def]) => {
+            addVariable(name, (def.values || []).join(', '), def.type || 'constant');
+        });
+
+        saveFormValues();
     }
 
     function loadFormValues() {
@@ -1627,7 +1668,7 @@
             const run = await resp.json();
             runId = run.id;
             remoteRunId = runId;
-            setLastRunDashboard(runnerUrl);
+            setLastRunDashboard(runnerUrl, runId);
             setActiveRun(runnerUrl, runId);
         } catch (err) {
             document.getElementById('status').textContent = `Runner error: ${err.message}`;

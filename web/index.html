@@ -38,6 +38,24 @@
 
     label { display: block; font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.35rem; }
 
+    .collapsible-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 0;
+    }
+    .collapsible-label:hover { color: #cbd5e1; }
+    .collapsible-label .chevron {
+      font-size: 0.65rem;
+      color: #475569;
+      transition: transform 0.15s;
+    }
+    .collapsible-label.open .chevron { transform: rotate(90deg); }
+    .collapsible-body { display: none; margin-top: 0.35rem; }
+    .collapsible-label.open + .collapsible-body { display: block; }
+
     textarea, input, select {
       width: 100%;
       background: #0f1117;
@@ -236,7 +254,7 @@
   </style>
 </head>
 <body onload="window.name='curl-load-dashboard'">
-  <h1><a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;" style="color:inherit; text-decoration:none;">curl-load</a> dashboard&nbsp;&nbsp;<a href="#" onclick="window.open('/load-tester.html','curl-load-workbench'); return false;" style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; vertical-align:middle;">workbench →</a></h1>
+  <h1><a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;" style="color:inherit; text-decoration:none;">curl-load</a> dashboard&nbsp;&nbsp;<a href="#" onclick="openWorkbench(); return false;" style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; vertical-align:middle;">workbench →</a></h1>
 
   <!-- Left column: form -->
   <div>
@@ -279,35 +297,52 @@
     </div>
 
     <div class="card">
-      <label for="headers">Headers (JSON, optional)</label>
-      <textarea id="headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
-    </div>
-
-    <div class="card">
-      <label for="body">Body (JSON, optional)</label>
-      <textarea id="body" placeholder='{ "key": "value" }'></textarea>
-    </div>
-
-    <div class="card">
-      <label for="responseContentType">Response Validation</label>
-      <select id="responseContentType" onchange="onResponseTypeChange()" style="width:auto;">
-        <option value="*">* (any)</option>
-        <option value="text">Text (regex)</option>
-        <option value="xml">XML (XPath)</option>
-        <option value="json">JSON (JSONPath)</option>
-      </select>
-      <div id="validationWrapper" style="display:none; margin-top:0.6rem;">
-        <label id="validationLabel" for="validationExpression"></label>
-        <input id="validationExpression" type="text" placeholder="" />
+      <label class="collapsible-label" onclick="toggleCollapsible(this)">
+        Headers (JSON, optional) <span class="chevron">▶</span>
+      </label>
+      <div class="collapsible-body">
+        <textarea id="headers" placeholder='{ "Authorization": "Bearer token" }'></textarea>
       </div>
     </div>
 
     <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
-        <h2 style="margin:0;">Variables</h2>
-        <button onclick="addVariable()" style="padding:0.3rem 0.8rem; font-size:0.8rem;">+ Add</button>
+      <label class="collapsible-label" onclick="toggleCollapsible(this)">
+        Body (JSON, optional) <span class="chevron">▶</span>
+      </label>
+      <div class="collapsible-body">
+        <textarea id="body" placeholder='{ "key": "value" }'></textarea>
       </div>
-      <div id="variables"></div>
+    </div>
+
+    <div class="card">
+      <label class="collapsible-label" onclick="toggleCollapsible(this)">
+        Response Validation <span class="chevron">▶</span>
+      </label>
+      <div class="collapsible-body">
+        <select id="responseContentType" onchange="onResponseTypeChange()" style="width:auto; margin-top:0.35rem;">
+          <option value="*">* (any)</option>
+          <option value="text">Text (regex)</option>
+          <option value="xml">XML (XPath)</option>
+          <option value="json">JSON (JSONPath)</option>
+        </select>
+        <div id="validationWrapper" style="display:none; margin-top:0.6rem;">
+          <label id="validationLabel" for="validationExpression"></label>
+          <input id="validationExpression" type="text" placeholder="" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="collapsible-label" onclick="toggleCollapsible(this)" style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="font-size:1rem; color:#94a3b8;">Variables</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="collapsible-body">
+        <div style="display:flex; justify-content:flex-end; margin-top:0.5rem; margin-bottom:0.4rem;">
+          <button onclick="addVariable()" style="padding:0.3rem 0.8rem; font-size:0.8rem;">+ Add</button>
+        </div>
+        <div id="variables"></div>
+      </div>
     </div>
 
     <div style="margin-bottom:1rem;">
@@ -332,6 +367,14 @@
               style="display:none; padding:0.3rem 0.8rem; font-size:0.8rem; background:#ef4444;">
         Delete Selected
       </button>
+      <a id="pdfLink" href="#"
+         style="display:none; padding:0.3rem 0.8rem; font-size:0.8rem; background:#334155; color:#e2e8f0; border-radius:4px; text-decoration:none; border:1px solid #475569; cursor:pointer; white-space:nowrap;">
+        Download PDF ↓
+      </a>
+      <a id="comparePdfBtn" href="#" onclick="downloadComparisonPdf(); return false;"
+         style="display:none; padding:0.3rem 0.8rem; font-size:0.8rem; background:#334155; color:#e2e8f0; border-radius:4px; text-decoration:none; border:1px solid #475569; cursor:pointer; white-space:nowrap;">
+        Comparison PDF ↓
+      </a>
       <button id="refreshBtn" style="padding:0.3rem 0.8rem; font-size:0.8rem;">Refresh</button>
     </div>
 
@@ -345,10 +388,6 @@
            onmouseover="this.style.textDecoration='underline'"
            onmouseout="this.style.textDecoration='none'"
            onclick="openK6Dashboard(this.dataset.url); return false;">View K6 Dashboard ↗</a>
-        <a id="pdfLink" href="#"
-           style="display:none; font-size:0.75rem; color:#94a3b8; text-decoration:none; margin-left:0.75rem;"
-           onmouseover="this.style.textDecoration='underline'"
-           onmouseout="this.style.textDecoration='none'">Download PDF ↓</a>
         <a id="certLink" href="#" download="client.crt"
            style="display:none; font-size:0.75rem; color:#94a3b8; text-decoration:none; margin-left:0.75rem;"
            onmouseover="this.style.textDecoration='underline'"
