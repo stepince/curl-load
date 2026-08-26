@@ -173,16 +173,23 @@
         .header-name  { flex: 1; }
         .header-value { flex: 2; }
 
-        #authRow, #tlsRow {
+        #authRow {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             flex-wrap: wrap;
             margin-bottom: 0.6rem;
         }
-        #authRow > label, #tlsRow > label { margin: 0; white-space: nowrap; }
+        #authRow > label { margin: 0; white-space: nowrap; }
         #authRow select  { width: auto; margin: 0; }
-        #tlsRow input[type="file"] { margin: 0; font-size: 0.78rem; }
+        .cert-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .cert-row label { font-size: 0.8rem; color: #94a3b8; width: 2.5rem; margin: 0; white-space: nowrap; }
+        .cert-row input[type="file"] { margin: 0; font-size: 0.78rem; }
         #authToken, #authUsername, #authPassword {
             margin: 0; flex: 1; min-width: 120px; display: none;
         }
@@ -210,7 +217,7 @@
 </head>
 <body onload="window.name='curl-load-workbench'">
 <h1 style="display:flex; align-items:center;">
-    <span>workbench</span>
+    <a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;" style="color:inherit; text-decoration:none;">curl-load</a><span style="margin-left:0.35rem;">workbench</span>
     <a href="#" onclick="window.open('/','curl-load-dashboard'); return false;"
        style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">dashboard →</a>
 
@@ -385,17 +392,6 @@
         <label for="authPassword" class="sr-only">Password</label>
         <input id="authPassword" type="password" placeholder="Password" oninput="saveFormValues()" />
     </div>
-    <div id="tlsRow">
-        <label style="font-size:0.8rem; color:#94a3b8;">TLS:</label>
-        <span style="font-size:0.78rem; color:#64748b;">Cert:</span>
-        <input type="file" id="tlsCertFile" accept=".crt,.pem,.cer" onchange="loadTlsCertFile(this,'cert')" />
-        <span id="tlsCertName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
-        <button id="tlsCertClear" onclick="clearTlsCert('cert')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
-        <span style="font-size:0.78rem; color:#64748b;">Key:</span>
-        <input type="file" id="tlsKeyFile" accept=".key,.pem" onchange="loadTlsCertFile(this,'key')" />
-        <span id="tlsKeyName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
-        <button id="tlsKeyClear" onclick="clearTlsCert('key')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
-    </div>
     <div id="headersContainer"></div>
 </div>
 
@@ -409,6 +405,23 @@
         </div>
     </div>
     <div id="variables"></div>
+</div>
+
+<!-- Certificates -->
+<div class="card">
+    <h3 style="margin:0 0 0.65rem;">Certificates</h3>
+    <div class="cert-row">
+        <label>Cert:</label>
+        <input type="file" id="tlsCertFile" accept=".crt,.pem,.cer" onchange="loadTlsCertFile(this,'cert')" />
+        <span id="tlsCertName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
+        <button id="tlsCertClear" onclick="clearTlsCert('cert')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
+    </div>
+    <div class="cert-row">
+        <label>Key:</label>
+        <input type="file" id="tlsKeyFile" accept=".key,.pem" onchange="loadTlsCertFile(this,'key')" />
+        <span id="tlsKeyName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
+        <button id="tlsKeyClear" onclick="clearTlsCert('key')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
+    </div>
 </div>
 
 <!-- Actions -->
@@ -443,7 +456,8 @@
            onmouseout="this.style.textDecoration='none'">key ↓</a>
     </div>
     <div id="report"></div>
-    <pre id="results" style="margin-top:0.75rem;"></pre>
+    <p id="responseLabel" style="display:none; font-size:0.8rem; color:#94a3b8; margin-top:0.75rem; margin-bottom:0.25rem;">Response</p>
+    <pre id="results" style="margin-top:0;"></pre>
 </div>
 
 <!-- Chart -->
@@ -703,7 +717,9 @@
             <p><strong>Error Rate:</strong> —</p>
         `;
         document.getElementById('results').textContent = '';
+        document.getElementById('responseLabel').style.display = 'none';
         document.getElementById('status').textContent = 'Idle';
+        document.getElementById('status').style.color = '';
         document.getElementById('certDownloadLink').style.display = 'none';
         document.getElementById('keyDownloadLink').style.display  = 'none';
         if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
@@ -865,7 +881,7 @@
         const builtins = options.builtins || {};
         const iteration = options.iteration ?? 0;
 
-        return text.replace(/\$\{(\w+)}/g, (_, name) => {
+        return text.replace(/\$\{(\w+)}/g, (match, name) => {
             let rawValue = '';
 
             if (name === 'random') {
@@ -875,7 +891,9 @@
             } else {
                 const def = variableDefs[name];
 
-                if (!def || !def.values?.length) {
+                if (!def) {
+                    return match;
+                } else if (!def.values?.length) {
                     rawValue = '';
                 } else {
                     switch (def.type) {
@@ -895,7 +913,7 @@
                 }
             }
 
-            return escapeForJsonString(String(rawValue));
+            return options.raw ? String(rawValue) : escapeForJsonString(String(rawValue));
         });
     }
 
@@ -997,8 +1015,8 @@
 
         saveFormValues();
         setRunState('single');
-        document.getElementById('status').textContent = 'Running Single…';
         resetRunDisplay();
+        document.getElementById('status').textContent = 'Running…';
 
         const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
         if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
@@ -1013,44 +1031,53 @@
             return;
         }
 
-        let runId;
+        // Substitute variables with first/iteration-0 values before sending
+        const variableDefs = getVariableDefinitions();
+        const builtins = buildBuiltins({ userId: 1, iteration: 0 });
+        const subst = (text) => substituteVariables(String(text), variableDefs, { builtins, iteration: 0, raw: true });
+
+        const url = subst(parsed.url);
+        const rawHeaders = { ...parsed.headers || {}, ...getAllHeaders() };
+        const headers = Object.fromEntries(Object.entries(rawHeaders).map(([k, v]) => [k, subst(v)]));
+        const body = parsed.body ? subst(parsed.body) : null;
+
         try {
-            const resp = await fetch(`${runnerUrl}/runs`, {
+            const resp = await fetch(`${runnerUrl}/proxy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name:                 document.getElementById('projectName').value.trim() || undefined,
-                    url:                  parsed.url,
-                    method:               parsed.method,
-                    headers:              { ...parsed.headers || {}, ...getAllHeaders() },
-                    body:                 parsed.body ? (() => { try { return JSON.parse(parsed.body); } catch { return parsed.body; } })() : null,
-                    variables:            getVariableDefinitions(),
-                    users:                1,
-                    iterations:           1,
-                    pause:                0,
-                    responseContentType:  document.getElementById('responseContentType').value,
-                    validationExpression: document.getElementById('validationExpression').value.trim(),
-                    clientCert:           (tlsCert.cert && tlsCert.key) ? tlsCert : undefined,
-                }),
+                body: JSON.stringify({ url, method: parsed.method, headers, body }),
             });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.error || resp.statusText);
-            }
-            const run = await resp.json();
-            runId = run.id;
-            remoteRunId = runId;
-            setLastRunDashboard(runnerUrl);
-            setActiveRun(runnerUrl, runId);
-        } catch (err) {
-            document.getElementById('status').textContent = `Runner error: ${err.message}`;
-            setRunState(null);
-            return;
-        }
+            const result = await resp.json();
+            if (!resp.ok && result.error) throw new Error(result.error);
 
-        document.getElementById('status').textContent = `Running on ${runnerUrl}…`;
-        document.getElementById('results').textContent = `Run submitted. ID: ${runId}\nWaiting for result…\n`;
-        startPolling(runnerUrl, runId);
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = `${result.status} ${result.statusText} — ${result.elapsed}ms`;
+            const isError = result.status >= 400;
+            statusEl.style.color = result.status >= 200 && result.status < 300 ? '#4ade80'
+                : isError ? '#f87171' : '#facc15';
+
+            const ms = result.elapsed;
+            const rps = ms > 0 ? (1000 / ms).toFixed(2) : '—';
+            document.getElementById('report').innerHTML = `
+                <p><strong>Elapsed:</strong> ${ms} ms</p>
+                <p><strong>Total Requests:</strong> 1</p>
+                <p><strong>Req/s:</strong> ${rps}</p>
+                <p><strong>Avg Latency:</strong> ${ms} ms</p>
+                <p><strong>p95 Latency:</strong> ${ms} ms</p>
+                <p><strong>p99 Latency:</strong> ${ms} ms</p>
+                <p><strong>Max Latency:</strong> ${ms} ms</p>
+                <p><strong>Error Rate:</strong> ${isError ? '100.00' : '0.00'} %</p>
+            `;
+
+            let displayBody = result.body || '(empty response)';
+            try { displayBody = JSON.stringify(JSON.parse(displayBody), null, 2); } catch {}
+            document.getElementById('responseLabel').style.display = 'block';
+            document.getElementById('results').textContent = displayBody;
+        } catch (err) {
+            document.getElementById('status').textContent = `Error: ${err.message}`;
+        } finally {
+            setRunState(null);
+        }
     }
 
     function resetForm() {
@@ -1404,11 +1431,22 @@
             if (result && result.vars.length > 0) {
                 newBodyStr = result.newBodyStr;
                 result.vars.forEach(v => extracted.push(v));
+            } else {
+                // Fallback: body is non-JSON or already fully templated — scan for ${varName} directly
+                for (const [, name] of parsed.body.matchAll(/\$\{(\w+)}/g)) {
+                    if (!existingNames.has(name)) {
+                        existingNames.add(name);
+                        extracted.push({ name, value: '' });
+                    }
+                }
             }
         }
 
         if (extracted.length === 0) {
-            alert('No extractable parameters found (query params or JSON body).');
+            const anyPlaceholders = /\$\{(\w+)}/.test((parsed.url || '') + (parsed.body || ''));
+            alert(anyPlaceholders
+                ? 'All template variables are already defined.'
+                : 'No extractable parameters found (query params or JSON body).');
             return;
         }
 

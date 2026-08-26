@@ -4,6 +4,7 @@
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { runsRouter } from './src/routes/runs.js';
+import { proxyRouter } from './src/routes/proxy.js';
 import { getRun, getActiveDashboardPort } from './src/services/run-store.js';
 
 const app = express();
@@ -67,6 +68,7 @@ app.use('/runs/:id/dashboard/live', (req, res, next) => {
 });
 
 app.use('/runs', runsRouter);
+app.use('/proxy', proxyRouter);
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
