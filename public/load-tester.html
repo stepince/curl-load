@@ -703,6 +703,10 @@
             <p><strong>Error Rate:</strong> —</p>
         `;
         document.getElementById('results').textContent = '';
+        document.getElementById('status').textContent = 'Idle';
+        document.getElementById('certDownloadLink').style.display = 'none';
+        document.getElementById('keyDownloadLink').style.display  = 'none';
+        if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
     }
 
     function setRunState(mode) {
@@ -1219,6 +1223,7 @@
         document.getElementById('headersContainer').innerHTML = '';
         document.getElementById('variables').innerHTML = '';
         resetTlsCert();
+        resetRunDisplay();
         document.getElementById('projectName').focus();
     }
 
