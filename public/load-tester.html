@@ -476,7 +476,7 @@
 </div>
 
 <!-- Chart -->
-<div class="card">
+<div id="latencyChartCard" class="card" style="display:none;">
     <h3>Latency Chart</h3>
     <canvas id="latencyChart" height="120"></canvas>
 </div>
@@ -824,6 +824,7 @@
         document.getElementById('certDownloadLink').style.display = 'none';
         document.getElementById('keyDownloadLink').style.display  = 'none';
         if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
+        document.getElementById('latencyChartCard').style.display = 'none';
     }
 
     function setRunState(mode) {
@@ -1229,6 +1230,7 @@
     }
 
     function drawLatencyChart(points) {
+        document.getElementById('latencyChartCard').style.display = 'block';
         try { localStorage.setItem('lastChartPoints', JSON.stringify(points)); } catch {}
 
         // Support old {t,v} format (cached in localStorage) and new {t,avg,p95,p99}
