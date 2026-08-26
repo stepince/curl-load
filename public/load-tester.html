@@ -645,6 +645,17 @@
 
     });
 
+    function copyToClipboard(text) {
+        if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+        return Promise.resolve();
+    }
+
     function saveLastTestRun(runnerUrl, runId) {
         try { localStorage.setItem('curl-load.lastTestRun', JSON.stringify({ runnerUrl, runId })); } catch {}
     }
@@ -660,7 +671,7 @@
     }
     function copySkillUrl(btn, id) {
         const text = document.getElementById(id).textContent;
-        navigator.clipboard.writeText(text).then(() => {
+        copyToClipboard(text).then(() => {
             const origBg = btn.style.background;
             btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
             setTimeout(() => { btn.style.background = origBg; }, 1500);
@@ -1899,7 +1910,7 @@
         const variableDefs = getVariableDefinitions();
         const builtins = buildBuiltins({ userId: 1, iteration: 0 });
         const text = substituteVariables(raw, variableDefs, { builtins, iteration: 0 });
-        navigator.clipboard.writeText(text).then(() => {
+        copyToClipboard(text).then(() => {
             const origBg = btn.style.background;
             btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
             setTimeout(() => { btn.style.background = origBg; }, 1500);
