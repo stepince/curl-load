@@ -16,3 +16,6 @@ node_modules/
 
 /runner/node_modules/
 /CLAUDE.md
+
+# Test data
+/runner/data/
