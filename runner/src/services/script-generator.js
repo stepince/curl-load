@@ -93,7 +93,7 @@ export default function () {
   const url  = resolveTemplate(URL_TEMPLATE);
   const body = BODY_TEMPLATE !== null ? resolveTemplate(BODY_TEMPLATE) : null;
 
-  const res = http.request('${method}', url, body, { headers: HEADERS, timeout: '${timeout != null ? timeout : 30}s' });
+  const res = http.request('${method}', url, body, { headers: HEADERS, timeout: '${timeout != null ? timeout : '30s'}' });
 
   check(res, {
     'status is 2xx': (r) => r.status >= 200 && r.status < 300,

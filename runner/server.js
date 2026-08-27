@@ -48,6 +48,13 @@ function getDashboardProxy(port) {
             const m = req.originalUrl?.match(/^(\/runs\/[^/?#]+\/dashboard\/live)/);
             if (m) proxyRes.headers.location = m[1] + loc;
           }
+          // k6's built-in web dashboard (xk6-dashboard) ships its own strict
+          // Content-Security-Policy that disallows 'unsafe-eval', but its bundled
+          // dashboard JS relies on eval/new Function and gets blocked by it. This
+          // is a locally-spawned, trusted k6 process being reverse-proxied through
+          // our own server, so drop its CSP rather than enforce it on our origin.
+          delete proxyRes.headers['content-security-policy'];
+          delete proxyRes.headers['content-security-policy-report-only'];
         },
         error: (_err, _req, res) => {
           if (res && !res.headersSent) {

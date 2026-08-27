@@ -56,7 +56,7 @@ async function startTest() {
   const users    = parseInt($('users').value, 10) || 10;
   const duration = $('duration').value.trim() || '30s';
   const pause    = parseFloat($('pause').value) || 0;
-  const timeout  = parseInt($('timeout').value, 10) || 30;
+  const timeout  = $('timeout').value.trim() || '30s';
 
   let headers = {};
   let body    = null;
@@ -294,7 +294,7 @@ function populateForm(run) {
   $('users').value       = c.users    ?? 10;
   $('duration').value    = c.duration || '30s';
   $('pause').value       = c.pause    ?? 1;
-  $('timeout').value     = c.timeout  ?? 30;
+  $('timeout').value     = c.timeout  ?? '30s';
   const headersVal = c.headers && Object.keys(c.headers).length
     ? JSON.stringify(c.headers, null, 2) : '';
   const bodyVal = c.body ? JSON.stringify(c.body, null, 2) : '';
@@ -824,10 +824,21 @@ function renderOutput() {
   }
 }
 
+function copyToClipboard(text) {
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  return Promise.resolve();
+}
+
 function copyReport(btn) {
   const text = $('detailOutput').textContent;
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => {
+  copyToClipboard(text).then(() => {
     const origBg = btn.style.background;
     btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
     setTimeout(() => { btn.style.background = origBg; }, 1500);
@@ -1020,3 +1031,13 @@ async function deleteRun(id) {
 loadHistory();
 // Refresh history every 5s to catch runs started via CLI or API
 historyPollInterval = setInterval(loadHistory, 5000);
+
+// When the workbench opens the dashboard with /#runId in an already-open window,
+// the browser updates the hash without a full reload — handle that here.
+window.addEventListener('hashchange', () => {
+  const hashId = window.location.hash.slice(1);
+  if (hashId) {
+    focusRun(hashId);
+    history.replaceState(null, '', window.location.pathname);
+  }
+});

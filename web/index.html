@@ -20,7 +20,7 @@
       color: #e2e8f0;
       padding: 2rem;
       display: grid;
-      grid-template-columns: 420px 1fr;
+      grid-template-columns: 520px 1fr;
       grid-template-rows: auto 1fr;
       gap: 1.5rem;
       min-height: 100vh;
@@ -278,7 +278,7 @@
           </select>
         </div>
         <div>
-          <label for="users">Virtual Users</label>
+          <label for="users" style="white-space:nowrap;">Virtual Users</label>
           <input id="users" type="number" value="10" min="1" />
         </div>
         <div>
@@ -286,12 +286,12 @@
           <input id="duration" type="text" value="30s" placeholder="30s" />
         </div>
         <div>
-          <label for="pause">Pause (s)</label>
+          <label for="pause" style="white-space:nowrap;">Pause (s)</label>
           <input id="pause" type="number" value="1" min="0" step="0.1" />
         </div>
         <div>
-          <label for="timeout">Request Timeout (s)</label>
-          <input id="timeout" type="number" value="30" min="1" />
+          <label for="timeout" style="white-space:nowrap;">Request Timeout</label>
+          <input id="timeout" type="text" value="30s" placeholder="30s" />
         </div>
       </div>
     </div>

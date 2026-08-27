@@ -223,15 +223,16 @@
 
     <!-- Documentation + Contact + Bug Report (RIGHT SIDE) -->
     <a href="documentation.html" target="curl-load-docs" title="Documentation"
-       style="display:inline-flex; align-items:center; margin-left:auto; color:#64748b; text-decoration:none;"
-       onmouseover="this.style.color='#7dd3fc'"
-       onmouseout="this.style.color='#64748b'">
+       style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:auto; color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:500;"
+       onmouseover="this.style.opacity=0.8"
+       onmouseout="this.style.opacity=1">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
              viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
         </svg>
+        Documentation
     </a>
 
     <a href="mailto:support@curl-load.com"
@@ -273,18 +274,16 @@
     </a>
 
     <button onclick="openSettings()" title="Settings" aria-label="Settings"
-            style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;
-                   background:none; border:none; color:#64748b; cursor:pointer;
-                   font-size:0.85rem; font-weight:500;"
-            onmouseover="this.style.color='#94a3b8'"
-            onmouseout="this.style.color='#64748b'">
+            style="display:inline-flex; align-items:center; margin-left:1rem;
+                   background:none; border:none; color:#94a3b8; cursor:pointer; padding:0;"
+            onmouseover="this.style.opacity=0.8"
+            onmouseout="this.style.opacity=1">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18"
              viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
         </svg>
-        Settings
     </button>
 </h1>
 
@@ -366,6 +365,17 @@
                     <option value="iteration">Iterations</option>
                 </select>
             </div>
+            <div>
+                <label for="timeout">Request timeout</label>
+                <div style="display:flex; gap:0.25rem;">
+                    <input type="number" id="timeout" value="30" min="1" style="margin:0; width:120px;" />
+                    <select id="timeoutUnit" style="margin:0; width:75px;">
+                        <option value="s">s</option>
+                        <option value="ms">ms</option>
+                        <option value="m">m</option>
+                    </select>
+                </div>
+            </div>
         </div>
         <div style="display:flex; gap:0.75rem; align-items:flex-end;">
             <div>
@@ -426,13 +436,13 @@
 <div class="card">
     <h3 style="margin:0 0 0.65rem;">Certificates</h3>
     <div class="cert-row">
-        <label>Cert:</label>
+        <label for="tlsCertFile">Cert:</label>
         <input type="file" id="tlsCertFile" accept=".crt,.pem,.cer" onchange="loadTlsCertFile(this,'cert')" />
         <span id="tlsCertName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
         <button id="tlsCertClear" aria-label="Clear certificate" onclick="clearTlsCert('cert')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
     </div>
     <div class="cert-row">
-        <label>Key:</label>
+        <label for="tlsKeyFile">Key:</label>
         <input type="file" id="tlsKeyFile" accept=".key,.pem" onchange="loadTlsCertFile(this,'key')" />
         <span id="tlsKeyName" style="font-size:0.75rem; color:#7dd3fc; display:none;"></span>
         <button id="tlsKeyClear" aria-label="Clear key" onclick="clearTlsCert('key')" style="display:none; background:none; border:none; color:#ef4444; opacity:0.6; padding:0 0.2rem; cursor:pointer; font-size:0.75rem;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>
@@ -569,7 +579,9 @@
         headers: [],
         variables: [],
         remoteUrl: window.location.origin,
-        remoteExpanded: false
+        remoteExpanded: false,
+        timeout: 30,
+        timeoutUnit: 's'
     };
 
     function buildBuiltins({ userId, iteration }) {
@@ -1091,7 +1103,9 @@
                     multiline: valuesInput.tagName === 'TEXTAREA'
                 };
             }),
-            remoteUrl: document.getElementById('remoteUrl').value
+            remoteUrl: document.getElementById('remoteUrl').value,
+            timeout: parseInt(document.getElementById('timeout').value) || 30,
+            timeoutUnit: document.getElementById('timeoutUnit').value
         };
         const json = JSON.stringify(formData);
         localStorage.setItem(getStorageKey(), json);
@@ -1147,6 +1161,8 @@
         onResponseTypeChange();
 
         document.getElementById('remoteUrl').value = formData.remoteUrl || (formData.remoteHost ? `http://${formData.remoteHost}:${formData.remotePort || '3000'}` : window.location.origin);
+        if (formData.timeout != null) document.getElementById('timeout').value = formData.timeout;
+        document.getElementById('timeoutUnit').value = formData.timeoutUnit || 's';
 
         document.getElementById('authType').value     = formData.authType     || 'none';
         document.getElementById('authToken').value    = formData.authToken    || '';
@@ -1797,6 +1813,7 @@
                     users:                 peakUsers,
                     duration:              `${durationSec}s`,
                     pause:                 parseFloat(document.getElementById('pause').value) || 0,
+                    timeout:               `${parseInt(document.getElementById('timeout').value) || 30}${document.getElementById('timeoutUnit').value}`,
                     responseContentType:   document.getElementById('responseContentType').value,
                     validationExpression:  document.getElementById('validationExpression').value.trim(),
                     clientCert:            (tlsCert.cert && tlsCert.key) ? tlsCert : undefined,
