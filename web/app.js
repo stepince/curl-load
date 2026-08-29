@@ -370,13 +370,39 @@ function handleCheckboxChange(id, checked) {
   if (selectedRunIds.size === 0) {
     $('historyDetail').style.display = 'none';
     $('compareDetail').style.display = 'none';
+    clearForm();
   } else if (selectedRunIds.size === 1) {
     $('compareDetail').style.display = 'none';
-    selectRun([...selectedRunIds][0]);
+    const singleId = [...selectedRunIds][0];
+    loadIntoForm(singleId);
+    selectRun(singleId);
   } else {
     $('historyDetail').style.display = 'none';
+    clearForm();
     renderCompareDetail([...selectedRunIds]);
   }
+}
+
+function clearForm() {
+  $('projectName').value = '';
+  $('url').value         = '';
+  $('users').value       = 10;
+  $('duration').value    = '30s';
+  $('pause').value       = 1;
+  $('timeout').value     = '30s';
+  $('headers').value     = '';
+  $('body').value        = '';
+  $('responseContentType').value = '*';
+  $('validationExpression').value = '';
+  onResponseTypeChange();
+  setCollapsible('headers', false);
+  setCollapsible('body', false);
+  setCollapsible('responseContentType', false);
+  setCollapsible('variables', false);
+  $('variables').innerHTML = '';
+  varCounter = 0;
+  const methodEl = $('method');
+  [...methodEl.options].forEach(o => { o.selected = o.value === 'GET'; });
 }
 
 function updateBulkUI() {
@@ -473,6 +499,7 @@ function loadIntoForm(id) {
       $('users').value    = c.users    ?? 10;
       $('duration').value = c.duration || '30s';
       $('pause').value    = c.pause    ?? 1;
+      $('timeout').value  = c.timeout  ?? '30s';
       const headersVal = Object.keys(c.headers || {}).length ? JSON.stringify(c.headers, null, 2) : '';
       const bodyVal    = c.body ? JSON.stringify(c.body, null, 2) : '';
       $('headers').value = headersVal;
