@@ -370,14 +370,19 @@
                 </select>
             </div>
             <div>
-                <label for="timeout">Request timeout</label>
-                <div style="display:flex; gap:0.25rem;">
-                    <input type="number" id="timeout" value="30" min="1" style="margin:0; width:120px;" />
-                    <select id="timeoutUnit" style="margin:0; width:75px;">
-                        <option value="s">s</option>
-                        <option value="ms">ms</option>
-                        <option value="m">m</option>
-                    </select>
+                <div style="display:flex; gap:0.25rem; align-items:flex-end;">
+                    <div>
+                        <label for="timeout">Request timeout</label>
+                        <input type="number" id="timeout" value="30" min="1" style="margin:0; width:120px;" />
+                    </div>
+                    <div>
+                        <label for="timeoutUnit">Time unit</label>
+                        <select id="timeoutUnit" style="margin:0; width:75px;">
+                            <option value="s">s</option>
+                            <option value="ms">ms</option>
+                            <option value="m">m</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
