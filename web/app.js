@@ -1028,6 +1028,7 @@ async function deleteRun(id) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+$('projectName').value = '';
 loadHistory();
 // Refresh history every 5s to catch runs started via CLI or API
 historyPollInterval = setInterval(loadHistory, 5000);
