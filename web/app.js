@@ -7,18 +7,64 @@ function toggleCollapsible(label) {
   label.classList.toggle('open');
 }
 
+const _workbenchChannel = new BroadcastChannel('curl-load-workbench');
+window.addEventListener('beforeunload', () => _workbenchChannel.close());
+
+function showToast(msg, isError = false) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = `position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;`
+    + `background:${isError ? '#7f1d1d' : '#1e3a5f'};color:#fff;`
+    + `padding:0.55rem 1rem;border-radius:6px;font-size:0.83rem;`
+    + `box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:opacity 0.3s;`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
 function openWorkbench() {
-  if (lastFinishedData?.runId) {
-    fetch(`${API}/runs/${lastFinishedData.runId}`)
-      .then(r => r.json())
-      .then(data => {
-        localStorage.setItem('curl-load.workbench-prefill', JSON.stringify(data.config || {}));
-      })
-      .catch(() => {})
-      .finally(() => window.open('/load-tester.html', 'curl-load-workbench'));
-  } else {
-    window.open('/load-tester.html', 'curl-load-workbench');
-  }
+  window.open('/load-tester.html', 'curl-load-workbench');
+}
+
+function openWorkbenchWithProject() {
+  const name = $('projectName').value.trim();
+  if (!name) return;
+  const config = {
+    name,
+    url:                  $('url').value.trim(),
+    method:               $('method').value,
+    headers:              (() => { try { return JSON.parse($('headers').value); } catch { return {}; } })(),
+    body:                 $('body').value.trim() || null,
+    users:                parseInt($('users').value, 10) || 10,
+    duration:             $('duration').value.trim() || '30s',
+    pause:                parseFloat($('pause').value) || 0,
+    timeout:              $('timeout').value.trim() || '30s',
+    variables:            getVariableDefinitions(),
+    responseContentType:  $('responseContentType').value,
+    validationExpression: $('validationExpression').value.trim(),
+  };
+
+  // Ensure the workbench window exists; if not open it now
+  window.open('/load-tester.html', 'curl-load-workbench');
+
+  let acked = false;
+  const onAck = e => {
+    if (e.data?.type === 'workbench-prefill-ack') {
+      acked = true;
+      _workbenchChannel.removeEventListener('message', onAck);
+      showToast('Project sent to Workbench');
+    }
+  };
+  _workbenchChannel.addEventListener('message', onAck);
+
+  const send = () => { if (!acked) _workbenchChannel.postMessage({ type: 'workbench-prefill', payload: config }); };
+  send();           // catches already-open tab (BroadcastChannel is ready)
+  setTimeout(send, 600); // catches freshly opened tab (needs parse + script exec time)
+
+  // Give up after 4 s and tell the user
+  setTimeout(() => {
+    _workbenchChannel.removeEventListener('message', onAck);
+    if (!acked) showToast('Could not reach Workbench — try clicking Update Project again', true);
+  }, 4000);
 }
 
 function setCollapsible(fieldId, open) {
@@ -384,6 +430,8 @@ function handleCheckboxChange(id, checked) {
 }
 
 function clearForm() {
+  const updateBtn = $('updateProjectBtn');
+  if (updateBtn) updateBtn.disabled = true;
   $('projectName').value = '';
   $('url').value         = '';
   $('users').value       = 10;
@@ -566,6 +614,8 @@ async function selectRun(id) {
     ]);
     const run = runR.ok ? await runR.json() : {};
     $('projectName').value = run.config?.name || '';
+    const updateBtn = $('updateProjectBtn');
+    if (updateBtn) updateBtn.disabled = !run.config?.name;
     renderDetailMetrics([
       ['Project',  run.config?.name || '—'],
       ['Run ID',   run.id],

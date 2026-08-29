@@ -68,6 +68,8 @@
         }
         button:hover { background: #2563eb; }
         button:disabled { background: #475569; cursor: not-allowed; }
+        #saveProfileBtn.dirty { background: #f59e0b; }
+        #saveProfileBtn.dirty:hover { background: #d97706; }
 
         pre {
             background: #0f1117;
@@ -302,13 +304,14 @@
     <input id="projectName" type="text" placeholder="e.g. my-project" style="width:auto; margin:0; flex:1; min-width:140px;" />
     <div style="display:flex; gap:0.4rem; margin:0; flex-wrap:wrap;">
         <button onclick="addProfile()">Add</button>
-        <button onclick="saveProfile()">Save</button>
+        <button id="saveProfileBtn" onclick="saveProfile()">Save</button>
         <button onclick="cloneProfile()">Clone</button>
         <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export ▼</button>
         <button onclick="document.getElementById('importFileInput').click()" style="background:#475569;">Import</button>
         <button onclick="deleteProfile()" style="background:#ef4444;">Delete</button>
         <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importProjectsFromFile(this.files[0])" />
     </div>
+    <div id="unsavedBadge" style="display:none; width:100%; margin:0; padding:0.2rem 0 0; color:#f59e0b; font-size:0.82rem;">· unsaved changes — click Save to keep them</div>
 </div>
 
 <!-- Export panel -->
@@ -599,15 +602,6 @@
         loadFormValues();
         restoreLastRunDashboard();
 
-        // Pre-fill from dashboard run selection
-        try {
-            const raw = localStorage.getItem('curl-load.workbench-prefill');
-            if (raw) {
-                localStorage.removeItem('curl-load.workbench-prefill');
-                applyDashboardPrefill(JSON.parse(raw));
-            }
-        } catch {}
-
         restoreActiveRun().then(async resumed => {
             if (resumed) return;
             try {
@@ -658,6 +652,17 @@
 
     });
 
+    const _workbenchChannel = new BroadcastChannel('curl-load-workbench');
+    _workbenchChannel.onmessage = e => {
+        if (e.data?.type === 'workbench-prefill' && e.data.payload) {
+            try {
+                applyDashboardPrefill(e.data.payload);
+                _workbenchChannel.postMessage({ type: 'workbench-prefill-ack' });
+            } catch {}
+        }
+    };
+    window.addEventListener('beforeunload', () => _workbenchChannel.close());
+
     function copyToClipboard(text) {
         if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
         const ta = document.createElement('textarea');
@@ -689,6 +694,19 @@
             btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
             setTimeout(() => { btn.style.background = origBg; }, 1500);
         });
+    }
+
+    function markDirty() {
+        const btn = document.getElementById('saveProfileBtn');
+        const badge = document.getElementById('unsavedBadge');
+        if (btn) btn.classList.add('dirty');
+        if (badge) badge.style.display = 'inline';
+    }
+    function markClean() {
+        const btn = document.getElementById('saveProfileBtn');
+        const badge = document.getElementById('unsavedBadge');
+        if (btn) btn.classList.remove('dirty');
+        if (badge) badge.style.display = 'none';
     }
 
     function getStorageKey() {
@@ -1115,33 +1133,117 @@
         localStorage.setItem(STORAGE_KEY, json);
     }
 
+    function parseDurationToSeconds(d) {
+        let total = 0;
+        const parts = String(d).match(/(\d+(?:\.\d+)?)(ms|[smh])/g) || [];
+        for (const p of parts) {
+            const m = p.match(/(\d+(?:\.\d+)?)(ms|[smh])/);
+            const v = parseFloat(m[1]), u = m[2];
+            if (u === 'ms') total += v / 1000;
+            else if (u === 's') total += v;
+            else if (u === 'm') total += v * 60;
+            else if (u === 'h') total += v * 3600;
+        }
+        return Math.max(1, Math.round(total));
+    }
+
     function applyDashboardPrefill(c) {
-        // Reconstruct a curl command from the run config
-        const parts = ['curl'];
-        if (c.method && c.method !== 'GET') parts.push(`-X ${c.method}`);
-        if (c.url) parts.push(`'${c.url}'`);
-        for (const [k, v] of Object.entries(c.headers || {})) {
-            parts.push(`-H '${k}: ${v}'`);
+        // If a matching project profile exists, load it first to preserve auth/ramp/certs
+        if (c.name) {
+            const profiles = getAllProfiles();
+            const existing = profiles[c.name];
+            if (existing) {
+                localStorage.setItem(getStorageKey(), JSON.stringify(existing));
+                loadFormValues();
+                localStorage.setItem(LAST_PROFILE_KEY, c.name);
+                const sel = document.getElementById('scenarioSelect');
+                if (sel) sel.value = c.name;
+            } else {
+                const nameEl = document.getElementById('projectName');
+                if (nameEl) nameEl.value = c.name;
+            }
         }
-        if (c.body) {
-            const bodyStr = typeof c.body === 'string' ? c.body : JSON.stringify(c.body);
-            parts.push(`-d '${bodyStr}'`);
-        }
-        document.getElementById('curlInput').value = parts.join(' \\\n  ');
 
-        if (c.users)    document.getElementById('users').value    = c.users;
+        let changed = false;
+
+        // Only rewrite the curl command if url, headers, or body actually changed
+        if (c.url) {
+            const currentRaw = document.getElementById('curlInput').value.trim();
+            const cur = currentRaw ? parseCurlCommand(currentRaw) : {};
+            const normalizeBody = b => { try { return JSON.stringify(JSON.parse(b || '')); } catch { return (b || '').trim(); } };
+            const urlChanged     = (cur.url    || '') !== c.url;
+            const headersChanged = JSON.stringify(cur.headers || {}) !== JSON.stringify(c.headers || {});
+            const bodyChanged    = normalizeBody(cur.body) !== normalizeBody(c.body);
+            if (urlChanged || headersChanged || bodyChanged) {
+                changed = true;
+                const parts = ['curl'];
+                if (c.method && c.method !== 'GET') parts.push(`-X ${c.method}`);
+                parts.push(`'${c.url}'`);
+                for (const [k, v] of Object.entries(c.headers || {})) {
+                    parts.push(`-H '${k}: ${v}'`);
+                }
+                if (c.body) {
+                    const bodyStr = typeof c.body === 'string' ? c.body : JSON.stringify(c.body);
+                    parts.push(`-d '${bodyStr}'`);
+                }
+                document.getElementById('curlInput').value = parts.join(' \\\n  ');
+            }
+        }
+
+        if (c.users != null) {
+            const el = document.getElementById('users');
+            if (String(el.value) !== String(c.users)) changed = true;
+            el.value = c.users;
+        }
         if (c.duration) {
+            const secs = parseDurationToSeconds(c.duration);
+            if (parseInt(document.getElementById('duration').value) !== secs) changed = true;
             document.getElementById('durationType').value = 'time';
-            document.getElementById('duration').value     = c.duration;
+            document.getElementById('duration').value = secs;
+            document.getElementById('durationType').dispatchEvent(new Event('change'));
         }
-        if (c.pause != null) document.getElementById('pause').value = c.pause;
+        if (c.pause != null) {
+            const el = document.getElementById('pause');
+            if (String(el.value) !== String(c.pause)) changed = true;
+            el.value = c.pause;
+        }
+        if (c.timeout) {
+            const m = String(c.timeout).match(/^(\d+(?:\.\d+)?)(ms|m|s)?$/);
+            if (m) {
+                const valEl = document.getElementById('timeout');
+                const unitEl = document.getElementById('timeoutUnit');
+                if (valEl.value !== m[1] || unitEl.value !== (m[2] || 's')) changed = true;
+                valEl.value = m[1];
+                unitEl.value = m[2] || 's';
+            }
+        }
+        if (c.responseContentType) {
+            const el = document.getElementById('responseContentType');
+            if (el.value !== c.responseContentType) changed = true;
+            el.value = c.responseContentType;
+            onResponseTypeChange();
+        }
+        if (c.validationExpression != null) {
+            const el = document.getElementById('validationExpression');
+            if (el.value !== c.validationExpression) changed = true;
+            el.value = c.validationExpression;
+        }
 
-        document.getElementById('variables').innerHTML = '';
-        Object.entries(c.variables || {}).forEach(([name, def]) => {
-            addVariable(name, (def.values || []).join(', '), def.type || 'constant');
-        });
+        const incomingVars = c.variables || {};
+        const sortKeys = o => JSON.stringify(Object.fromEntries(Object.entries(o).sort(([a],[b]) => a.localeCompare(b))));
+        if (sortKeys(getVariableDefinitions()) !== sortKeys(incomingVars)) {
+            changed = true;
+            document.getElementById('variables').innerHTML = '';
+            Object.entries(incomingVars).forEach(([name, def]) => {
+                addVariable(name, (def.values || []).join(', '));
+                const rows = document.querySelectorAll('.variable-row');
+                const typeSelect = rows[rows.length - 1]?.querySelector('.variable-type');
+                if (typeSelect) typeSelect.value = def.type || 'constant';
+            });
+        }
 
         saveFormValues();
+        if (changed) markDirty();
     }
 
     function loadFormValues() {
@@ -1467,6 +1569,7 @@
         saveAllProfiles(profiles);
         refreshProfileDropdown();
         document.getElementById('scenarioSelect').value = name;
+        markClean();
     }
 
 
