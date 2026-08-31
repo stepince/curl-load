@@ -45,6 +45,13 @@ run:
 run-version:
 	docker run -p 3000:3000 -v curl-load-runs:/app/runs $(FULL_IMAGE):$(VERSION)
 
+# Foreground, with api.internal.demo mapped to the host for local demo targets
+demo-run:
+	docker run -p 3000:3000 \
+		--add-host=api.internal.demo:host-gateway \
+		-v curl-load-runs:/app/runs \
+		$(FULL_IMAGE):latest
+
 # ---- Docker Hub ----
 login:
 	docker login
