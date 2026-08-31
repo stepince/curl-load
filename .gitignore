@@ -19,3 +19,4 @@ node_modules/
 
 # Test data
 /runner/data/
+/runs/

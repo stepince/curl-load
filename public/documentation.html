@@ -11,6 +11,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>curl-load Documentation</title>
+  <meta name="description" content="Documentation for curl-load — turn an HTTP request into a k6 load test, run it, and read the results. Covers requests, variables, execution modes, CI/CD, and AI skills.">
+  <meta property="og:title" content="curl-load Documentation">
+  <meta property="og:description" content="Turn an HTTP request into a k6 load test, run it, and read the results.">
+  <meta property="og:type" content="website">
   <link rel="icon" type="image/png" href="/favicon.png">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,6 +93,26 @@
       font-size: inherit;
       color: inherit;
     }
+
+    .code-block { position: relative; }
+
+    .code-block .copy-btn {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      width: 25px;
+      height: 25px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      cursor: pointer;
+      opacity: 0.5;
+      background: url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22 aria-hidden=%22true%22><path fill=%22%23aaa%22 fill-rule=%22evenodd%22 d=%22M4 12h4v1H4zm5-6H4v1h5zm2 3V7l-3 3 3 3v-2h5V9zM6.5 8H4v1h2.5zM4 11h2.5v-1H4zm9 1h1v2c-.02.28-.11.52-.3.7s-.42.28-.7.3H3c-.55 0-1-.45-1-1V3c0-.55.45-1 1-1h3c0-1.11.89-2 2-2s2 .89 2 2h3c.55 0 1 .45 1 1v5h-1V5H3v9h10zM4 4h8c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1s-.45-1-1-1-1 .45-1 1-.45 1-1 1H5c-.55 0-1 .45-1 1%22/></svg>') 50% no-repeat;
+    }
+
+    .code-block .copy-btn:hover { opacity: 1; }
+
+    .code-block pre { padding-right: 2.25rem; }
 
     table {
       width: 100%;
@@ -169,10 +193,13 @@
   <hr class="divider">
 
   <h3>1. Start the container</h3>
-  <pre><code>docker run -d --name curl-load \
+  <div class="code-block">
+    <button class="copy-btn" onclick="copyCode(this)" title="Copy to clipboard" aria-label="Copy docker command to clipboard"></button>
+    <pre><code>docker run -d --name curl-load \
   -p 3000:3000 \
   -v curl-load-runs:/app/runs \
   curlload/curl-load-runner:1.5.0</code></pre>
+  </div>
 
   <ul>
     <li><code>-d</code> — run in the background</li>
@@ -331,10 +358,10 @@ clothing</code></pre>
 
   <hr class="divider">
 
-  <h3>Local vs Remote</h3>
+  <h3>Run Single vs Run Test</h3>
   <ul>
-    <li><b>Local:</b> variables change per request</li>
-    <li><b>Remote:</b> variables change per user and per iteration</li>
+    <li><b>Run Single:</b> variables resolve once, using the first value</li>
+    <li><b>Run Test:</b> variables resolve per virtual user and per iteration, just like a real load test</li>
   </ul>
 
   <hr class="divider">
@@ -351,12 +378,12 @@ clothing</code></pre>
 
   <h3>Execution Modes</h3>
 
-  <p>curl-load supports three ways to run tests depending on your needs:</p>
+  <p>curl-load supports two ways to run a request, both executed by the curl-load runner (Docker / k6) rather than the browser:</p>
 
   <ul>
     <li>
       <b>Run Single</b><br>
-      Executes one request directly in the browser.
+      Sends one request through the runner and shows the full response.
       <ul>
         <li>Best for debugging and validation</li>
         <li>Shows full response body</li>
@@ -366,29 +393,18 @@ clothing</code></pre>
 
     <li>
       <b>Run Test</b><br>
-      Runs a load test directly in the browser using multiple virtual users.
+      Runs a full load test on the runner using k6, with multiple virtual users.
       <ul>
         <li>Simulates concurrent users</li>
         <li>Shows live results and latency chart</li>
-        <li>Limited by browser and network constraints</li>
-      </ul>
-    </li>
-
-    <li>
-      <b>Run Remote</b><br>
-      Executes the test on a remote server (runner).
-      <ul>
-        <li>Best for real load testing</li>
-        <li>Not limited by browser performance</li>
-        <li>Can run inside a VPC or close to your backend</li>
-        <li>Uses the curl-load runner (Docker / k6)</li>
+        <li>Not limited by browser performance — can run inside a VPC or close to your backend</li>
       </ul>
     </li>
   </ul>
 
   <p class="tip">
-    Tip: Use <b>Run Single</b> to verify your request, <b>Run Test</b> for quick local checks,
-    and <b>Run Remote</b> for production-grade load testing.
+    Tip: Use <b>Run Single</b> to verify your request, then <b>Run Test</b> for real load testing.
+    Set the runner's URL once under <b>Settings</b> — it applies to every run, not per project.
   </p>
 
 </div>
@@ -533,5 +549,25 @@ GET /skills/dashboard.md</code></pre>
 <footer style="margin-top:2rem; padding:1rem 2rem; text-align:right; font-size:0.75rem; color:#334155;">
   curl-load v1.5.0
 </footer>
+<script>
+  function copyCode(btn) {
+    const text = btn.parentElement.querySelector('pre').textContent;
+    const done = () => {
+      const orig = btn.style.background;
+      btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
+      setTimeout(() => { btn.style.background = orig; }, 1500);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(done);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } finally { document.body.removeChild(ta); }
+  }
+</script>
 </body>
 </html>

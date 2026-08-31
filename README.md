@@ -66,8 +66,8 @@ The runner also serves the web UI at `http://localhost:3000`.
 - Custom headers and auth (Bearer, Basic)
 - Response validation (JSON path, XPath, text)
 - Live latency chart during test execution
-- Run Single for quick one-shot testing
-- Run Remote to target any runner instance
+- Run Single for quick one-shot testing, Run Test for full load tests — both executed by the runner
+- Point at any runner instance via a single global setting
 - Save, load, clone, import, and export named projects
 - Compare multiple runs side-by-side
 

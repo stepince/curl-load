@@ -461,13 +461,13 @@
 <!-- Actions -->
 <div class="card" style="padding:0.85rem 1.25rem;">
     <div class="remote-form-row" style="margin-bottom:0.75rem;">
-        <label for="remoteUrl">Runner URL:</label>
-        <input type="text" id="remoteUrl" placeholder="http://localhost:3000" required style="flex:1; margin:0;" />
+        <label>Runner URL:</label>
+        <span id="runnerUrlDisplay" style="flex:1; color:#94a3b8; font-size:0.85rem;"></span>
+        <button type="button" onclick="openSettings()" style="background:#475569; margin:0; padding:0.3rem 0.6rem; font-size:0.78rem;">Change</button>
     </div>
     <button id="runSingleBtn" data-action="run-single" onclick="runSingleTest()">Run Single</button>
     <button id="runTestBtn" data-action="run-test" onclick="executeRemoteTest()">Run Test</button>
     <button id="stopBtn" onclick="cancelTest()" style="background:#ef4444;">Stop</button>
-    <button onclick="resetForm()" style="background:#475569;">Reset</button>
 </div>
 
 <!-- Status + Results -->
@@ -510,6 +510,14 @@
                 style="position:absolute; top:0.75rem; right:0.75rem; background:none;
                        border:none; color:#64748b; font-size:1.1rem; cursor:pointer; line-height:1; padding:0;">✕</button>
         <h2 style="font-size:1rem; color:#94a3b8; margin-bottom:1.25rem;">Settings</h2>
+
+        <p style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em;
+                  color:#475569; margin-bottom:0.75rem;">Runner</p>
+        <div style="margin-bottom:1.5rem;">
+            <label for="settingsRunnerUrl" style="font-size:0.85rem; color:#cbd5e1; display:block; margin-bottom:0.3rem;">Runner URL</label>
+            <input type="text" id="settingsRunnerUrl" placeholder="http://localhost:3000" style="margin:0;" oninput="saveRunnerUrl()" />
+            <p style="font-size:0.75rem; color:#64748b; margin-top:0.3rem; margin-bottom:0;">Used for every run, across all projects.</p>
+        </div>
 
         <p style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.08em;
                   color:#475569; margin-bottom:0.75rem;">AI Skills</p>
@@ -570,6 +578,7 @@
     const STORAGE_KEY = 'loadTesterFormData';
     const PROFILES_KEY = 'loadTester.profiles';
     const LAST_PROFILE_KEY = 'loadTester.lastProfile';
+    const RUNNER_URL_KEY = 'loadTester.remoteUrl';
     const defaultValues = {
         projectName: '',
         curlInput: '',
@@ -587,11 +596,37 @@
         authPassword: '',
         headers: [],
         variables: [],
-        remoteUrl: window.location.origin,
         remoteExpanded: false,
         timeout: 30,
         timeoutUnit: 's'
     };
+
+    // Runner URL is a single global setting (configured under Settings), not
+    // per-project — this tool only ever talks to one remote runner at a time.
+    function getRunnerUrl() {
+        const stored = localStorage.getItem(RUNNER_URL_KEY);
+        return (stored != null ? stored : defaultRunnerUrl()).trim().replace(/\/$/, '');
+    }
+    function saveRunnerUrl() {
+        const val = document.getElementById('settingsRunnerUrl').value.trim().replace(/\/$/, '');
+        localStorage.setItem(RUNNER_URL_KEY, val);
+        updateRunnerUrlDisplay();
+    }
+    function updateRunnerUrlDisplay() {
+        const el = document.getElementById('runnerUrlDisplay');
+        if (el) el.textContent = getRunnerUrl() || '(not set)';
+    }
+    // One-time migration: earlier versions stored the runner URL per-project.
+    // Carry forward whatever was last used so existing setups keep working.
+    function migrateRunnerUrl() {
+        if (localStorage.getItem(RUNNER_URL_KEY) != null) return;
+        try {
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            if (saved?.remoteUrl) {
+                localStorage.setItem(RUNNER_URL_KEY, saved.remoteUrl);
+            }
+        } catch {}
+    }
 
     function buildBuiltins({ userId, iteration }) {
         return {
@@ -604,6 +639,8 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+        migrateRunnerUrl();
+        updateRunnerUrlDisplay();
         loadFormValues();
         restoreLastRunDashboard();
 
@@ -631,7 +668,7 @@
                 }
             } catch {}
         });
-        const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'remoteUrl', 'authType', 'authToken', 'authUsername', 'authPassword'];
+        const fields = ['projectName', 'curlInput', 'duration', 'iterations', 'pause', 'users', 'ramp', 'durationType', 'responseContentType', 'validationExpression', 'authType', 'authToken', 'authUsername', 'authPassword'];
         fields.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', saveFormValues);
@@ -685,6 +722,7 @@
 
     function openSettings() {
         const base = window.location.origin;
+        document.getElementById('settingsRunnerUrl').value = getRunnerUrl();
         document.getElementById('workbenchSkillUrl').textContent = base + '/skills/workbench.md';
         document.getElementById('dashboardSkillUrl').textContent = base + '/skills/dashboard.md';
         document.getElementById('settingsModal').style.display = 'flex';
@@ -920,7 +958,7 @@
         document.getElementById('status').textContent = 'Cancelled';
 
         if (remoteRunId) {
-            const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+            const runnerUrl = getRunnerUrl();
             if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
             fetch(`${runnerUrl}/runs/${remoteRunId}/stop`, { method: 'POST' })
                 .catch(() => {});
@@ -1127,7 +1165,6 @@
                     multiline: valuesInput.tagName === 'TEXTAREA'
                 };
             }),
-            remoteUrl: document.getElementById('remoteUrl').value,
             timeout: parseInt(document.getElementById('timeout').value) || 30,
             timeoutUnit: document.getElementById('timeoutUnit').value
         };
@@ -1268,7 +1305,6 @@
         document.getElementById('validationExpression').value = formData.validationExpression || '';
         onResponseTypeChange();
 
-        document.getElementById('remoteUrl').value = formData.remoteUrl || (formData.remoteHost ? `http://${formData.remoteHost}:${formData.remotePort || '3000'}` : window.location.origin);
         if (formData.timeout != null) document.getElementById('timeout').value = formData.timeout;
         document.getElementById('timeoutUnit').value = formData.timeoutUnit || 's';
 
@@ -1313,7 +1349,7 @@
         resetRunDisplay();
         document.getElementById('status').textContent = 'Running…';
 
-        const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+        const runnerUrl = getRunnerUrl();
         if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
 
         let parsed;
@@ -1384,24 +1420,6 @@
         } finally {
             setRunState(null);
         }
-    }
-
-    function resetForm() {
-        const name = document.getElementById('scenarioSelect').value;
-        if (name) {
-            // Project loaded — restore to last saved state
-            const profiles = getAllProfiles();
-            const data = profiles[name];
-            if (data) {
-                localStorage.setItem(getStorageKey(), JSON.stringify(data));
-                loadFormValues();
-                return;
-            }
-        }
-        // No project — reset to defaults
-        localStorage.removeItem(STORAGE_KEY);
-        loadFormValues();
-        resetTlsCert();
     }
 
     function drawLatencyChart(points) {
@@ -1888,7 +1906,7 @@
         const curlTextRaw = document.getElementById('curlInput').value.trim();
         if (!curlTextRaw) { alert('Please enter a curl command first.'); return; }
 
-        const runnerUrl = document.getElementById('remoteUrl').value.trim().replace(/\/$/, '');
+        const runnerUrl = getRunnerUrl();
         if (!runnerUrl) { document.getElementById('status').textContent = 'Runner URL is required.'; setRunState(null); return; }
         const durationSec = parseInt(document.getElementById('duration').value) || 30;
         const peakUsers   = parseInt(document.getElementById('users').value)    || 1;

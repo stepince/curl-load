@@ -160,6 +160,8 @@ async function startTest() {
     currentRunId = run.id;
     selectedRunIds.clear();
     selectedRunIds.add(run.id);
+    runStatusMap.set(run.id, run.status);
+    updateBulkUI();
 
     currentRunMeta = { id: run.id, project: name, users, duration };
     renderDetailMetrics([
@@ -300,6 +302,7 @@ async function loadHistory() {
       currentRunId = activeRun.id;
       selectedRunIds.clear();
       selectedRunIds.add(activeRun.id);
+      updateBulkUI();
       populateForm(activeRun);
       $('historyDetail').style.display = 'block';
       $('compareDetail').style.display = 'none';
@@ -455,7 +458,7 @@ function clearForm() {
 
 function updateBulkUI() {
   const total     = document.querySelectorAll('.run-checkbox').length;
-  const checked   = document.querySelectorAll('.run-checkbox:checked').length;
+  const checked   = selectedRunIds.size;
   const selectAll = $('selectAllCheckbox');
   const deleteBtn = $('deleteSelectedBtn');
   const stopBtn   = $('stopSelectedBtn');
@@ -595,6 +598,7 @@ function focusRun(id) {
     el.classList.toggle('active', el.dataset.id === id);
   });
   $('compareDetail').style.display = 'none';
+  updateBulkUI();
   loadIntoForm(id);
   selectRun(id);
 }
@@ -605,12 +609,16 @@ async function selectRun(id) {
   $('detailOutput').textContent = 'Loading…';
   $('detailMetrics').innerHTML = '';
 
-  // Fetch run metadata + output
+  // Fetch run metadata + output. Summary/stdout are speculatively fetched in
+  // parallel with the run itself (they 404 cheaply if the run isn't terminal
+  // yet) instead of waiting on a separate /status round-trip first — that
+  // extra sequential hop was what delayed the PDF button from appearing.
   const terminal = ['finished', 'stopped'];
   try {
-    const [runR, sr] = await Promise.all([
+    const [runR, summaryR, stdoutR] = await Promise.all([
       fetch(`${API}/runs/${id}`),
-      fetch(`${API}/runs/${id}/status`),
+      fetch(`${API}/runs/${id}/summary`),
+      fetch(`${API}/runs/${id}/stdout`),
     ]);
     const run = runR.ok ? await runR.json() : {};
     $('projectName').value = run.config?.name || '';
@@ -626,29 +634,18 @@ async function selectRun(id) {
       ['Status',   run.status],
     ]);
 
-    const { status } = sr.ok ? await sr.json() : {};
-
-    if (terminal.includes(status)) {
-      try {
-        const [summaryR, stdoutR] = await Promise.all([
-          fetch(`${API}/runs/${id}/summary`),
-          fetch(`${API}/runs/${id}/stdout`),
-        ]);
-        if (summaryR.ok) {
-          const data        = await summaryR.json();
-          const stdout      = stdoutR.ok ? await stdoutR.text() : null;
-          const elapsedMs   = (run.startedAt && run.finishedAt)
-            ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
-          const dashboardReport = run.dashboardReport || null;
-          lastFinishedData  = { runId: id, data, elapsedMs, stdout, dashboardReport, hasCert: !!run.hasCert };
-          renderOutput();
-          return;
-        }
-      } catch { /* fall through */ }
+    if (terminal.includes(run.status) && summaryR.ok) {
+      const data        = await summaryR.json();
+      const stdout      = stdoutR.ok ? await stdoutR.text() : null;
+      const elapsedMs   = (run.startedAt && run.finishedAt)
+        ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
+      const dashboardReport = run.dashboardReport || null;
+      lastFinishedData  = { runId: id, data, elapsedMs, stdout, dashboardReport, hasCert: !!run.hasCert };
+      renderOutput();
+      return;
     }
 
-    const r = await fetch(`${API}/runs/${id}/stdout`);
-    $('detailOutput').textContent = r.ok ? await r.text() : 'No output yet.';
+    $('detailOutput').textContent = stdoutR.ok ? await stdoutR.text() : 'No output yet.';
   } catch {
     $('detailOutput').textContent = 'Failed to load output.';
   }

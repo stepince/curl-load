@@ -24,6 +24,10 @@ Profiles are stored in `localStorage` under the key `loadTester.profiles` as a J
 
 The currently selected profile name is in `loadTester.lastProfile`.
 
+### Runner URL (global setting)
+
+Unlike other fields, the runner URL is **not** per-profile — it's a single global setting shared across all projects, stored in `localStorage` under `loadTester.remoteUrl`. It's configured via the gear icon → Settings modal (`#settingsRunnerUrl` input, saved via `saveRunnerUrl()`), not on the main form. Read it with `localStorage.getItem('loadTester.remoteUrl')`; falls back to the page's own origin if unset.
+
 ### Form field IDs (UI)
 
 | Field | Element ID |
@@ -37,7 +41,6 @@ The currently selected profile name is in `loadTester.lastProfile`.
 | Duration type | `#durationType` — `"time"` or `"iteration"` |
 | Pause between requests | `#pause` |
 | Ramp-up period | `#ramp` |
-| Runner URL | `#remoteUrl` |
 | Auth type | `#authType` — `"none"`, `"bearer"`, `"basic"` |
 | Bearer token | `#authToken` |
 | Basic username | `#authUsername` |
