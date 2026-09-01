@@ -53,7 +53,7 @@ Unlike other fields, the runner URL is **not** per-profile — it's a single glo
 Variables are rows inside `#variables`. Each row has:
 - Name input: `#varName_N` (N = 0-based index)
 - Value input: `#varValue_N`
-- Type select: `#varType_N` — `"constant"`, `"sequential"`, `"random"`, `"random-pick"`
+- Type select: `#varType_N` — `"constant"`, `"sequential"`, `"random"`
 
 Add a variable row via `addVariable()` (global function).
 
@@ -61,15 +61,38 @@ Add a variable row via `addVariable()` (global function).
 
 Headers are inside `#headersContainer`. Add via `addHeader()`.
 
+### Auto Extract (Headers & Variables)
+
+`autoExtractHeaders()` and `autoExtractVariables()` scan the current `#curlInput` text:
+- **Headers**: any `-H` header in the curl command not already present in `#headersContainer` gets added as a row. An `Authorization: Bearer <token>` / `Basic <creds>` header is routed into the Auth fields (`#authType`, `#authToken` / `#authUsername`+`#authPassword`) instead of a plain header row.
+- **Variables**: only recognizes `${name}` placeholders **already written** in the curl command (URL or body) — it does **not** turn literal values into variables automatically. To make a value variable-driven, replace the literal with `${name}` yourself first, then call `autoExtractVariables()` to create the (empty-valued) variable row for it.
+
+Both functions `alert()` when there's nothing to extract — there's no silent/programmatic variant of the public `autoExtractHeaders()`/`autoExtractVariables()` functions, so driving them via automation may trigger a blocking dialog if the curl command has no headers/placeholders.
+
 ### Profile actions (UI functions)
 
 ```js
-addProfile()     // create new profile from current Name field
+addProfile()     // reset the form to a blank project (also reachable via the "New" panel's "Basic" button)
 saveProfile()    // save current form state to selected profile
 loadProfile()    // load selected profile into form
 deleteProfile()  // delete selected profile
 cloneProfile()   // clone selected profile
 ```
+
+> **Overwrite protection:** `saveProfile()` and `cloneProfile()` prompt with a native `confirm()` dialog if the target name collides with an existing profile that isn't the one currently loaded/selected. If driving this via script/automation, avoid reusing an existing profile name unless you intend to overwrite it — a collision will block on the dialog, which automation has no way to answer.
+
+### Building a request from fields (Advanced form)
+
+Instead of pasting a curl command, the "New" panel (opened via `#newProjectToggleBtn`, labeled "New") has an "Advanced — build from fields" mode that constructs one from separate inputs:
+
+| Field | Element ID |
+|-------|-----------|
+| URL | `#newProjectUrl` |
+| Method | `#newProjectMethod` — `GET`/`POST`/`PUT`/`PATCH`/`DELETE` |
+| Request Content-Type | `#newProjectContentType` — `""` (none), `"application/json"`, `"application/xml"`, `"text/plain"`, `"application/x-www-form-urlencoded"` |
+| Payload | `#newProjectPayload` (optional, any format — not JSON-validated) |
+
+Calling `createProjectFromFields()` resets the form, builds a curl command via `buildCurlCommand(url, method, payload, contentType)`, writes it into `#curlInput`, then runs Auto Extract for headers and variables automatically (so a JSON `${...}`-templated payload and its Content-Type header get pulled into the Headers/Variables sections without an extra step). For REST-API-driven automation this is usually unnecessary — POST the equivalent `{url, method, headers, body}` directly to `/runs` instead; this path exists mainly for a human building a request without knowing curl syntax.
 
 ---
 
