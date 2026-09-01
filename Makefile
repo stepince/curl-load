@@ -1,7 +1,7 @@
 # ---- Config ----
 IMAGE_NAME := curl-load-runner
 DOCKER_USER := curlload
-VERSION := 1.5.0
+VERSION := 1.6.0
 
 FULL_IMAGE := $(DOCKER_USER)/$(IMAGE_NAME)
 

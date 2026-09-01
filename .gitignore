@@ -20,3 +20,5 @@ node_modules/
 # Test data
 /runner/data/
 /runs/
+/data/
+/.idea/

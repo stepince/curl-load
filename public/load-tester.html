@@ -295,7 +295,7 @@
 
 
 <!-- Profile bar -->
-<div class="card" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.85rem 1.25rem;">
+<div class="card" style="position:relative; display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; padding:0.85rem 1.25rem;">
     <label for="scenarioSelect" style="margin:0; white-space:nowrap;">Project:</label>
     <select id="scenarioSelect" onchange="loadProfile()" style="width:auto; margin:0; flex:1; min-width:140px;">
         <option value="">-- select --</option>
@@ -303,24 +303,61 @@
     <label for="projectName" style="margin:0; white-space:nowrap;">Name:</label>
     <input id="projectName" type="text" placeholder="e.g. my-project" style="width:auto; margin:0; flex:1; min-width:140px;" />
     <div style="display:flex; gap:0.4rem; margin:0; flex-wrap:wrap;">
-        <button onclick="addProfile()">Add</button>
+        <button id="newProjectToggleBtn" onclick="toggleNewProjectPanel()" style="background:#475569;">New ▾</button>
         <button id="saveProfileBtn" onclick="saveProfile()">Save</button>
         <button onclick="cloneProfile()">Clone</button>
-        <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export ▼</button>
+        <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export ▾</button>
         <button onclick="document.getElementById('importFileInput').click()" style="background:#475569;">Import</button>
         <button onclick="deleteProfile()" style="background:#ef4444;">Delete</button>
         <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importProjectsFromFile(this.files[0])" />
     </div>
     <div id="unsavedBadge" style="display:none; width:100%; margin:0; padding:0.2rem 0 0; color:#f59e0b; font-size:0.82rem;">· unsaved changes — click Save to keep them</div>
-</div>
 
-<!-- Export panel -->
-<div id="exportPanel" class="card" style="display:none; padding:0.85rem 1.25rem;">
-    <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.65rem;">
-        <button id="exportSelectAllBtn" onclick="toggleExportSelectAll()" style="margin:0; background:#475569;">Select All</button>
-        <button onclick="exportSelectedProjects()" style="margin:0; margin-left:auto;">Export Selected</button>
+    <!-- New Project panel — nested here (not a sibling) so position:absolute
+         anchors to this bar's position:relative, not to <body> -->
+    <div id="newProjectPanel" class="card"
+         style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:0.4rem;
+                z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #334155;">
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.65rem; flex-wrap:wrap;">
+            <button onclick="startNewProjectBasic()">Basic</button>
+            <button id="newProjectAdvancedToggleBtn" onclick="toggleNewProjectAdvanced()" style="background:#475569;">Advanced — build from fields ▾</button>
+        </div>
+        <div id="newProjectAdvancedFields" style="display:none; flex-direction:column; gap:0.5rem;">
+            <label for="newProjectUrl" style="margin:0;">URL</label>
+            <input id="newProjectUrl" type="text" placeholder="https://api.example.com/endpoint" style="width:100%; margin:0;" />
+            <label for="newProjectMethod" style="margin:0;">Method</label>
+            <select id="newProjectMethod" style="width:100%; margin:0;">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+            </select>
+            <label for="newProjectContentType" style="margin:0;">Request Content-Type</label>
+            <select id="newProjectContentType" style="width:100%; margin:0;">
+                <option value="">None</option>
+                <option value="application/json">JSON</option>
+                <option value="application/xml">XML</option>
+                <option value="text/plain">Text</option>
+                <option value="application/x-www-form-urlencoded">Form Data</option>
+            </select>
+            <label for="newProjectPayload" style="margin:0;">Payload (optional)</label>
+            <textarea id="newProjectPayload" rows="3" placeholder="Any request body — JSON, text, form data, XML, etc." style="width:100%; margin:0;"></textarea>
+            <button onclick="createProjectFromFields()" style="align-self:flex-start;">Create</button>
+        </div>
     </div>
-    <div id="exportProjectList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:200px; overflow-y:auto;"></div>
+
+    <!-- Export panel — nested here (not a sibling) so position:absolute
+         anchors to this bar's position:relative, not to <body> -->
+    <div id="exportPanel" class="card"
+         style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:0.4rem;
+                z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #334155;">
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.65rem;">
+            <button id="exportSelectAllBtn" onclick="toggleExportSelectAll()" style="margin:0; background:#475569;">Select All</button>
+            <button onclick="exportSelectedProjects()" style="margin:0; margin-left:auto;">Export Selected</button>
+        </div>
+        <div id="exportProjectList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:200px; overflow-y:auto;"></div>
+    </div>
 </div>
 
 <!-- curl input -->
@@ -332,7 +369,7 @@
                 onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">
         </button>
     </div>
-    <textarea id="curlInput" rows="6" style="margin:0;"></textarea>
+    <textarea id="curlInput" rows="6" style="margin:0;" placeholder="e.g. curl -X POST 'https://api.example.com/users' -H 'Content-Type: application/json' -d '{&quot;name&quot;: &quot;Ada&quot;}'"></textarea>
 </div>
 
 <!-- Validation -->
@@ -638,6 +675,10 @@
         };
     }
 
+    // ${...} names resolved specially by substituteVariables() — never
+    // treated as extractable user-defined variables.
+    const BUILTIN_VAR_NAMES = new Set(['random', 'user', 'iteration', 'timestamp', 'isoTimestamp', 'hostname']);
+
     window.addEventListener('DOMContentLoaded', () => {
         migrateRunnerUrl();
         updateRunnerUrlDisplay();
@@ -691,6 +732,25 @@
             select.value = lastProfile;
             loadProfile();
         }
+
+        // Close the New/Export dropdown panels when focus or a click lands
+        // outside them (their own toggle button excluded, so a click that
+        // opens/closes a panel doesn't fight with this). focusin catches
+        // focusable elements (inputs, buttons, links); click also catches
+        // clicks on non-focusable space — plain text, labels, card padding.
+        const closeFloatingPanelsIfOutside = (target) => {
+            const newPanel    = document.getElementById('newProjectPanel');
+            const newBtn      = document.getElementById('newProjectToggleBtn');
+            const exportPanel = document.getElementById('exportPanel');
+            const exportBtn   = document.getElementById('exportToggleBtn');
+            // closeNewProjectPanel()/closeExportPanel() are idempotent (only
+            // toggle if currently open), so it's safe to call these on every
+            // focus/click without checking display state here ourselves.
+            if (!newPanel.contains(target) && target !== newBtn) closeNewProjectPanel();
+            if (!exportPanel.contains(target) && target !== exportBtn) closeExportPanel();
+        };
+        document.addEventListener('focusin', (e) => closeFloatingPanelsIfOutside(e.target));
+        document.addEventListener('click', (e) => closeFloatingPanelsIfOutside(e.target));
 
     });
 
@@ -1579,6 +1639,70 @@
         document.getElementById('projectName').focus();
     }
 
+    function toggleNewProjectPanel() {
+        const panel = document.getElementById('newProjectPanel');
+        const btn   = document.getElementById('newProjectToggleBtn');
+        const open  = panel.style.display === 'none';
+        panel.style.display = open ? 'block' : 'none';
+        btn.textContent = open ? 'New ▴' : 'New ▾';
+        if (!open) {
+            document.getElementById('newProjectAdvancedFields').style.display = 'none';
+            document.getElementById('newProjectAdvancedToggleBtn').textContent = 'Advanced — build from fields ▾';
+            document.getElementById('newProjectUrl').value = '';
+            document.getElementById('newProjectContentType').value = '';
+            document.getElementById('newProjectPayload').value = '';
+            document.getElementById('newProjectMethod').value = 'GET';
+        }
+        if (open) closeExportPanel(); // only one floating panel open at a time
+    }
+
+    function startNewProjectBasic() {
+        addProfile();
+        closeNewProjectPanel(); // close panel + reset its own fields (idempotent — safe even if addProfile()'s internal focus() already closed it)
+    }
+
+    function toggleNewProjectAdvanced() {
+        const el  = document.getElementById('newProjectAdvancedFields');
+        const btn = document.getElementById('newProjectAdvancedToggleBtn');
+        const open = el.style.display === 'none';
+        el.style.display = open ? 'flex' : 'none';
+        btn.textContent = open ? 'Advanced — build from fields ▴' : 'Advanced — build from fields ▾';
+        if (open) document.getElementById('newProjectUrl').focus();
+    }
+
+    // Builds a curl command string from separate fields — same convention used
+    // by applyDashboardPrefill()'s inline builder. No quote-escaping for
+    // embedded single quotes in url/payload — known, accepted limitation.
+    function buildCurlCommand(url, method, payload, contentType) {
+        const parts = ['curl'];
+        if (method && method !== 'GET') parts.push(`-X ${method}`);
+        parts.push(`'${url}'`);
+        if (contentType) parts.push(`-H 'Content-Type: ${contentType}'`);
+        const trimmed = (payload || '').trim();
+        if (trimmed) parts.push(`-d '${trimmed}'`);
+        return parts.join(' \\\n  ');
+    }
+
+    function createProjectFromFields() {
+        const url = document.getElementById('newProjectUrl').value.trim();
+        if (!url) {
+            alert('Enter a URL before creating a project.');
+            return;
+        }
+        const method      = document.getElementById('newProjectMethod').value;
+        const contentType = document.getElementById('newProjectContentType').value;
+        const payload     = document.getElementById('newProjectPayload').value;
+
+        addProfile(); // full reset to a blank project
+        document.getElementById('curlInput').value = buildCurlCommand(url, method, payload, contentType);
+        extractHeadersFromCurl();   // e.g. pulls the Content-Type header into the Headers section
+        extractVariablesFromCurl(); // e.g. turns ${...} placeholders in the URL/payload into Variables rows
+        saveFormValues();
+        markDirty();
+        closeNewProjectPanel(); // close panel + reset its own fields (idempotent)
+        document.getElementById('curlInput').focus();
+    }
+
     function saveProfile() {
         const name = document.getElementById('projectName').value.trim();
         if (!name) {
@@ -1587,6 +1711,11 @@
         }
 
         const profiles = getAllProfiles();
+        const currentSelection = document.getElementById('scenarioSelect').value;
+        if (profiles[name] && name !== currentSelection) {
+            if (!confirm(`A project named "${name}" already exists. Overwrite it?`)) return;
+        }
+
         saveFormValues();
         profiles[name] = JSON.parse(localStorage.getItem(getStorageKey()));
         saveAllProfiles(profiles);
@@ -1610,6 +1739,9 @@
         if (!profiles[current]) {
             alert("Selected profile not found.");
             return;
+        }
+        if (profiles[newName]) {
+            if (!confirm(`A project named "${newName}" already exists. Overwrite it?`)) return;
         }
         profiles[newName] = JSON.parse(JSON.stringify(profiles[current]));
         saveAllProfiles(profiles);
@@ -1636,11 +1768,9 @@
     }
 
     // ── Auto Extract Variables ────────────────────────────────────────────────
-
-    function sanitizeVarName(raw) {
-        // Convert kebab-case and snake_case to camelCase
-        return raw.replace(/[-_](.)/g, (_, c) => c.toUpperCase());
-    }
+    // Only recognizes ${name} placeholders already written in the curl
+    // command — it never turns a literal value into a new variable on its
+    // own (that used to happen automatically and was overwhelming).
 
     function getExistingVarNames() {
         const names = new Set();
@@ -1651,142 +1781,46 @@
         return names;
     }
 
-    function makeUniqueName(base, existingNames) {
-        if (!existingNames.has(base)) return base;
-        let i = 2;
-        while (existingNames.has(base + i)) i++;
-        return base + i;
-    }
-
-    function extractJsonBodyVars(bodyStr, existingNames) {
-        let obj;
-        try { obj = JSON.parse(bodyStr); } catch { return null; }
-
-        const vars = [];
-
-        function processObj(node) {
-            if (Array.isArray(node)) return node.map(processObj);
-            if (node !== null && typeof node === 'object') {
-                const result = {};
-                for (const [k, v] of Object.entries(node)) {
-                    if (v !== null && typeof v === 'object') {
-                        result[k] = processObj(v);
-                    } else {
-                        const strVal = String(v);
-                        const placeholderMatch = strVal.match(/^\$\{(\w+)}$/);
-                        if (placeholderMatch) {
-                            result[k] = strVal;
-                            const existingVarName = placeholderMatch[1];
-                            if (!existingNames.has(existingVarName)) {
-                                existingNames.add(existingVarName);
-                                vars.push({ name: existingVarName, value: '' });
-                            }
-                        } else {
-                            const varName = makeUniqueName(sanitizeVarName(k), existingNames);
-                            existingNames.add(varName);
-                            vars.push({ name: varName, value: strVal });
-                            result[k] = '${' + varName + '}';
-                        }
-                    }
-                }
-                return result;
-            }
-            return node;
-        }
-
-        const newObj = processObj(obj);
-        return { newBodyStr: JSON.stringify(newObj), vars };
-    }
-
-    // Replace a query param's value in the raw URL string without encoding.
-    function replaceQueryParamInUrl(urlStr, paramKey, newValue) {
-        const escapedKey = paramKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return urlStr.replace(
-            new RegExp(`([?&]${escapedKey}=)[^&#]*`),
-            (_, prefix) => prefix + newValue
-        );
-    }
-
-    function autoExtractVariables() {
+    // Silent core: does the extraction, returns a result descriptor instead of
+    // alerting. Used both by the manual "Auto Extract" button (which alerts on
+    // the outcome below) and by automatic callers (e.g. the New-project
+    // Advanced form) that don't want a popup on every run.
+    function extractVariablesFromCurl() {
         const curlRaw = document.getElementById('curlInput').value.trim();
-        if (!curlRaw) {
-            alert('Please enter a curl command or URL first.');
-            return;
-        }
+        if (!curlRaw) return { extracted: [], reason: 'no-input' };
 
         const parsed = parseCurlCommand(curlRaw);
-        const urlStr = parsed.url;
-        if (!urlStr) {
-            alert('No URL found in the input.');
-            return;
-        }
-
-        let urlObj;
-        try {
-            urlObj = new URL(urlStr);
-        } catch {
-            alert('Could not parse URL: ' + urlStr);
-            return;
-        }
+        if (!parsed.url) return { extracted: [], reason: 'no-url' };
 
         const existingNames = getExistingVarNames();
         const extracted = [];
+        const haystack = (parsed.url || '') + (parsed.body || '');
 
-        // ── Query parameters (string replacement — no URL encoding) ───────────
-        let newUrl = urlStr;
-        [...urlObj.searchParams.entries()].forEach(([key, value]) => {
-            const placeholderMatch = value.match(/^\$\{(\w+)}$/);
-            if (placeholderMatch) {
-                const existingVarName = placeholderMatch[1];
-                if (!existingNames.has(existingVarName)) {
-                    existingNames.add(existingVarName);
-                    extracted.push({ name: existingVarName, value: '' });
-                }
-            } else {
-                const varName = makeUniqueName(sanitizeVarName(key), existingNames);
-                existingNames.add(varName);
-                extracted.push({ name: varName, value });
-                newUrl = replaceQueryParamInUrl(newUrl, key, '${' + varName + '}');
-            }
-        });
-
-        // ── JSON body (optional) ──────────────────────────────────────────────
-        let newBodyStr = null;
-        if (parsed.body) {
-            const result = extractJsonBodyVars(parsed.body, existingNames);
-            if (result && result.vars.length > 0) {
-                newBodyStr = result.newBodyStr;
-                result.vars.forEach(v => extracted.push(v));
-            } else {
-                // Fallback: body is non-JSON or already fully templated — scan for ${varName} directly
-                for (const [, name] of parsed.body.matchAll(/\$\{(\w+)}/g)) {
-                    if (!existingNames.has(name)) {
-                        existingNames.add(name);
-                        extracted.push({ name, value: '' });
-                    }
-                }
+        for (const [, name] of haystack.matchAll(/\$\{(\w+)}/g)) {
+            if (!BUILTIN_VAR_NAMES.has(name) && !existingNames.has(name)) {
+                existingNames.add(name);
+                extracted.push({ name, value: '' });
             }
         }
 
         if (extracted.length === 0) {
-            const anyPlaceholders = /\$\{(\w+)}/.test((parsed.url || '') + (parsed.body || ''));
-            alert(anyPlaceholders
-                ? 'All template variables are already defined.'
-                : 'No extractable parameters found (query params or JSON body).');
-            return;
+            const anyPlaceholders = /\$\{(\w+)}/.test(haystack);
+            return { extracted: [], reason: anyPlaceholders ? 'all-defined' : 'nothing-found' };
         }
 
-        // ── Update curl input ─────────────────────────────────────────────────
-        let updatedCurl = curlRaw.replace(urlStr, () => newUrl);
-        if (newBodyStr && parsed.body) {
-            updatedCurl = updatedCurl.replace(parsed.body, () => newBodyStr);
-        }
-        document.getElementById('curlInput').value = updatedCurl;
-
-        // ── Populate variables table ──────────────────────────────────────────
         extracted.forEach(({ name, value }) => addVariable(name, value));
-
         saveFormValues();
+        return { extracted, reason: null };
+    }
+
+    function autoExtractVariables() {
+        const result = extractVariablesFromCurl();
+        switch (result.reason) {
+            case 'no-input': alert('Please enter a curl command or URL first.'); break;
+            case 'no-url':   alert('No URL found in the input.'); break;
+            case 'all-defined':   alert('All template variables are already defined.'); break;
+            case 'nothing-found': alert('No ${name} placeholders found. Wrap a value like ${name} in the curl command to mark it as a variable.'); break;
+        }
     }
 
     // ── Headers ───────────────────────────────────────────────────────────────
@@ -1847,14 +1881,14 @@
         return headers;
     }
 
-    function autoExtractHeaders() {
+    // Silent core — see extractVariablesFromCurl() for why this doesn't alert.
+    function extractHeadersFromCurl() {
         const curlRaw = document.getElementById('curlInput').value.trim();
-        if (!curlRaw) { alert('Please enter a curl command first.'); return; }
+        if (!curlRaw) return { added: 0, reason: 'no-input' };
 
         const parsed = parseCurlCommand(curlRaw);
         if (!parsed.headers || Object.keys(parsed.headers).length === 0) {
-            alert('No headers found in the curl command.');
-            return;
+            return { added: 0, reason: 'no-headers' };
         }
 
         const existingNames = new Set(
@@ -1893,11 +1927,18 @@
             }
         }
 
-        if (added === 0) {
-            alert('All headers are already present in the Headers section.');
-            return;
-        }
+        if (added === 0) return { added: 0, reason: 'already-present' };
         saveFormValues();
+        return { added, reason: null };
+    }
+
+    function autoExtractHeaders() {
+        const result = extractHeadersFromCurl();
+        switch (result.reason) {
+            case 'no-input':   alert('Please enter a curl command first.'); break;
+            case 'no-headers': alert('No headers found in the curl command.'); break;
+            case 'already-present': alert('All headers are already present in the Headers section.'); break;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -2083,8 +2124,18 @@
         const btn   = document.getElementById('exportToggleBtn');
         const open  = panel.style.display === 'none';
         panel.style.display = open ? 'block' : 'none';
-        btn.textContent = open ? 'Export ▲' : 'Export ▼';
+        btn.textContent = open ? 'Export ▴' : 'Export ▾';
         if (open) renderExportPanel();
+        if (open) closeNewProjectPanel(); // only one floating panel open at a time
+    }
+
+    // Force-close helpers (vs. the toggle functions) — used for mutual
+    // exclusivity so opening one floating panel closes the other.
+    function closeNewProjectPanel() {
+        if (document.getElementById('newProjectPanel').style.display !== 'none') toggleNewProjectPanel();
+    }
+    function closeExportPanel() {
+        if (document.getElementById('exportPanel').style.display !== 'none') toggleExportPanel();
     }
 
     function renderExportPanel() {
@@ -2191,7 +2242,7 @@
     }
 </script>
 <footer style="margin-top:2rem; padding:1rem 2rem; text-align:right; font-size:0.75rem; color:#334155;">
-    curl-load v1.5.0
+    curl-load v1.6.0
 </footer>
 </body>
 </html>

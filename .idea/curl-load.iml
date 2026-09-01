@@ -6,6 +6,8 @@
       <sourceFolder url="file://$MODULE_DIR$/runner/node_modules" isTestSource="false" generated="true" />
       <excludeFolder url="file://$MODULE_DIR$/docs" />
       <excludeFolder url="file://$MODULE_DIR$/runs" />
+      <excludeFolder url="file://$MODULE_DIR$/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/data" />
     </content>
     <content url="file://$MODULE_DIR$/runner/node_modules" />
     <orderEntry type="inheritedJdk" />
