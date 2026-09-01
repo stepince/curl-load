@@ -94,12 +94,13 @@
       color: inherit;
     }
 
-    .code-block { position: relative; }
+    .code-block-header {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 0.35rem;
+    }
 
-    .code-block .copy-btn {
-      position: absolute;
-      top: 0.4rem;
-      right: 0.4rem;
+    .code-block-header .copy-btn {
       width: 25px;
       height: 25px;
       padding: 0;
@@ -110,9 +111,7 @@
       background: url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22 aria-hidden=%22true%22><path fill=%22%23aaa%22 fill-rule=%22evenodd%22 d=%22M4 12h4v1H4zm5-6H4v1h5zm2 3V7l-3 3 3 3v-2h5V9zM6.5 8H4v1h2.5zM4 11h2.5v-1H4zm9 1h1v2c-.02.28-.11.52-.3.7s-.42.28-.7.3H3c-.55 0-1-.45-1-1V3c0-.55.45-1 1-1h3c0-1.11.89-2 2-2s2 .89 2 2h3c.55 0 1 .45 1 1v5h-1V5H3v9h10zM4 4h8c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1s-.45-1-1-1-1 .45-1 1-.45 1-1 1H5c-.55 0-1 .45-1 1%22/></svg>') 50% no-repeat;
     }
 
-    .code-block .copy-btn:hover { opacity: 1; }
-
-    .code-block pre { padding-right: 2.25rem; }
+    .code-block-header .copy-btn:hover { opacity: 1; }
 
     table {
       width: 100%;
@@ -172,7 +171,8 @@
 <div class="container">
 
 <h1 style="display:flex; align-items:center;">
-  curl-load Documentation
+  <a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;"
+     style="color:inherit; text-decoration:none; white-space:nowrap;">curl-load</a>&nbsp;Documentation
   <a href="load-tester.html" target="curl-load-workbench"
      style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem;"
      onmouseover="this.style.textDecoration='underline'"
@@ -193,13 +193,13 @@
   <hr class="divider">
 
   <h3>1. Start the container</h3>
-  <div class="code-block">
+  <div class="code-block-header">
     <button class="copy-btn" onclick="copyCode(this)" title="Copy to clipboard" aria-label="Copy docker command to clipboard"></button>
-    <pre><code>docker run -d --name curl-load \
+  </div>
+  <pre><code>docker run -d --name curl-load \
   -p 3000:3000 \
   -v curl-load-runs:/app/runs \
-  curlload/curl-load-runner:1.5.0</code></pre>
-  </div>
+  curlload/curl-load-runner:latest</code></pre>
 
   <ul>
     <li><code>-d</code> — run in the background</li>
@@ -207,7 +207,7 @@
     <li><code>-v curl-load-runs:/app/runs</code> — persist run history across restarts</li>
   </ul>
 
-  <p class="tip">To always use the latest release replace <code>1.5.0</code> with <code>latest</code>.</p>
+  <p class="tip">To pin a specific release instead, replace <code>latest</code> with a version tag, e.g. <code>1.5.0</code>.</p>
 
   <hr class="divider">
 
@@ -551,7 +551,7 @@ GET /skills/dashboard.md</code></pre>
 </footer>
 <script>
   function copyCode(btn) {
-    const text = btn.parentElement.querySelector('pre').textContent;
+    const text = btn.parentElement.nextElementSibling.textContent;
     const done = () => {
       const orig = btn.style.background;
       btn.style.background = "url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22><path fill=%22%2300aa00%22 d=%22M13.5 2l-7.5 7.5-3.5-3.5L1 7.5 6 12.5 15 3.5z%22/></svg>') 50% no-repeat";
