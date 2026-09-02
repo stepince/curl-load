@@ -374,15 +374,47 @@
 </div>
 
 <!-- curl input -->
-<div class="card">
+<div class="card" style="position:relative;">
     <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.35rem;">
         <label for="curlInput" style="margin:0; flex:1;">curl command</label>
+        <button id="curlEditToggleBtn" onclick="toggleCurlEditPanel()" style="margin:0; background:#475569; flex-shrink:0;">Edit <span class="caret">▾</span></button>
         <button onclick="copyCurl(this)" title="Copy to clipboard" aria-label="Copy curl command to clipboard"
                 style="background: url('data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2215%22 aria-hidden=%22true%22><path fill=%22%23aaa%22 fill-rule=%22evenodd%22 d=%22M4 12h4v1H4zm5-6H4v1h5zm2 3V7l-3 3 3 3v-2h5V9zM6.5 8H4v1h2.5zM4 11h2.5v-1H4zm9 1h1v2c-.02.28-.11.52-.3.7s-.42.28-.7.3H3c-.55 0-1-.45-1-1V3c0-.55.45-1 1-1h3c0-1.11.89-2 2-2s2 .89 2 2h3c.55 0 1 .45 1 1v5h-1V5H3v9h10zM4 4h8c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1s-.45-1-1-1-1 .45-1 1-.45 1-1 1H5c-.55 0-1 .45-1 1%22/></svg>') 50% no-repeat; border:none; width:25px; height:25px; padding:0; cursor:pointer; flex-shrink:0; opacity:0.6; margin:0;"
                 onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">
         </button>
     </div>
     <textarea id="curlInput" rows="6" style="margin:0;" placeholder="e.g. curl -X POST 'https://api.example.com/users' -H 'Content-Type: application/json' -d '{&quot;name&quot;: &quot;Ada&quot;}'"></textarea>
+
+    <!-- Curl Edit panel — nested here (not a sibling) so position:absolute
+         anchors to this card's position:relative, not to <body>. Re-parses
+         #curlInput fresh every time it's opened (see populateCurlEditPanel). -->
+    <div id="curlEditPanel" class="card"
+         style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:0.4rem;
+                z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #334155;">
+        <div style="display:flex; flex-direction:column; gap:0.5rem;">
+            <label for="curlEditUrl" style="margin:0;">URL</label>
+            <input id="curlEditUrl" type="text" placeholder="https://api.example.com/endpoint" style="width:100%; margin:0;" />
+            <label for="curlEditMethod" style="margin:0;">Method</label>
+            <select id="curlEditMethod" style="width:100%; margin:0;">
+                <option>GET</option>
+                <option>POST</option>
+                <option>PUT</option>
+                <option>PATCH</option>
+                <option>DELETE</option>
+            </select>
+            <label for="curlEditContentType" style="margin:0;">Request Content-Type</label>
+            <select id="curlEditContentType" style="width:100%; margin:0;">
+                <option value="">None</option>
+                <option value="application/json">JSON</option>
+                <option value="application/xml">XML</option>
+                <option value="text/plain">Text</option>
+                <option value="application/x-www-form-urlencoded">Form Data</option>
+            </select>
+            <label for="curlEditPayload" style="margin:0;">Payload (optional)</label>
+            <textarea id="curlEditPayload" rows="4" placeholder="Any request body — JSON, text, form data, XML, etc." style="width:100%; margin:0;"></textarea>
+            <button onclick="applyCurlEdit()" style="align-self:flex-start;">Update</button>
+        </div>
+    </div>
 </div>
 
 <!-- Validation -->
@@ -756,11 +788,14 @@
             const newBtn      = document.getElementById('newProjectToggleBtn');
             const exportPanel = document.getElementById('exportPanel');
             const exportBtn   = document.getElementById('exportToggleBtn');
-            // closeNewProjectPanel()/closeExportPanel() are idempotent (only
-            // toggle if currently open), so it's safe to call these on every
-            // focus/click without checking display state here ourselves.
+            const editPanel   = document.getElementById('curlEditPanel');
+            const editBtn     = document.getElementById('curlEditToggleBtn');
+            // closeNewProjectPanel()/closeExportPanel()/closeCurlEditPanel() are
+            // idempotent (only toggle if currently open), so it's safe to call
+            // these on every focus/click without checking display state here.
             if (!newPanel.contains(target) && target !== newBtn) closeNewProjectPanel();
             if (!exportPanel.contains(target) && target !== exportBtn) closeExportPanel();
+            if (!editPanel.contains(target) && target !== editBtn) closeCurlEditPanel();
         };
         document.addEventListener('focusin', (e) => closeFloatingPanelsIfOutside(e.target));
         document.addEventListener('click', (e) => closeFloatingPanelsIfOutside(e.target));
@@ -1656,8 +1691,8 @@
     // the toolbar when open. If focus is left in a now-covered field (e.g.
     // the curl command box), the user can keep typing into something they
     // can't see. Blur it so focus state matches what's actually visible.
-    function blurIfCoveredByPanel() {
-        const toolbar = document.getElementById('newProjectPanel').parentElement;
+    function blurIfCoveredByPanel(toolbar) {
+        toolbar = toolbar || document.getElementById('newProjectPanel').parentElement;
         const active = document.activeElement;
         if (active && active !== document.body && !toolbar.contains(active)) {
             active.blur();
@@ -1680,6 +1715,7 @@
             document.getElementById('newProjectMethod').value = 'GET';
         }
         if (open) closeExportPanel(); // only one floating panel open at a time
+        if (open) closeCurlEditPanel(); // only one floating panel open at a time
     }
 
     function startNewProjectBasic() {
@@ -2154,6 +2190,98 @@
         btn.querySelector('.caret').classList.toggle('open', open);
         if (open) renderExportPanel();
         if (open) closeNewProjectPanel(); // only one floating panel open at a time
+        if (open) closeCurlEditPanel();   // only one floating panel open at a time
+    }
+
+    // Ensures `value` is selectable in a fixed-option <select>, injecting a
+    // synthetic option holding the exact original value when it isn't in the
+    // built-in list (e.g. method "HEAD", or a Content-Type the dropdown doesn't
+    // enumerate). Without this, populating the Curl Edit panel from an existing
+    // curl command could silently swap an unrecognized value for the dropdown's
+    // first option — turning "Update" into a silent data-loss action for a
+    // field the user never touched.
+    function ensureCustomOption(selectEl, value) {
+        const stale = selectEl.querySelector('option[data-custom]');
+        if (stale) stale.remove();
+        if (value && ![...selectEl.options].some(o => o.value === value)) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value;
+            opt.dataset.custom = '1';
+            selectEl.appendChild(opt);
+        }
+        selectEl.value = value;
+    }
+
+    // Re-parses #curlInput fresh every time — never relies on stale state from
+    // a previous open, so edits made directly in the textarea (or via Auto
+    // Extract) are always reflected.
+    function populateCurlEditPanel() {
+        const raw = document.getElementById('curlInput').value.trim();
+        const parsed = raw ? parseCurlCommand(raw) : { method: 'GET', url: '', headers: {}, body: '' };
+
+        document.getElementById('curlEditUrl').value     = parsed.url || '';
+        document.getElementById('curlEditPayload').value = parsed.body || '';
+        ensureCustomOption(document.getElementById('curlEditMethod'), parsed.method || 'GET');
+
+        const ctKey = Object.keys(parsed.headers || {}).find(k => k.toLowerCase() === 'content-type');
+        ensureCustomOption(document.getElementById('curlEditContentType'), ctKey ? parsed.headers[ctKey].trim() : '');
+    }
+
+    // Rebuilds #curlInput from the Curl Edit panel's fields. Preserves every
+    // existing header except Content-Type (case-insensitive lookup — existing
+    // curl text may use any casing); that one key is replaced/removed per the
+    // dropdown, everything else (Authorization, custom headers, etc.) carries
+    // through untouched in its original casing. Same backslash-continued
+    // multi-line style as buildCurlCommand()/applyDashboardPrefill().
+    function applyCurlEdit() {
+        const url = document.getElementById('curlEditUrl').value.trim();
+        if (!url) {
+            alert('Enter a URL before updating the curl command.');
+            return;
+        }
+        const method      = document.getElementById('curlEditMethod').value;
+        const contentType = document.getElementById('curlEditContentType').value;
+        const payload     = document.getElementById('curlEditPayload').value;
+
+        const raw = document.getElementById('curlInput').value.trim();
+        const parsed = raw ? parseCurlCommand(raw) : { headers: {} };
+        const headers = { ...(parsed.headers || {}) };
+
+        const ctKey = Object.keys(headers).find(k => k.toLowerCase() === 'content-type');
+        if (ctKey) delete headers[ctKey];
+        if (contentType) headers['Content-Type'] = contentType;
+
+        const parts = ['curl'];
+        if (method && method !== 'GET') parts.push(`-X ${method}`);
+        parts.push(`'${url}'`);
+        for (const [k, v] of Object.entries(headers)) parts.push(`-H '${k}: ${v}'`);
+        const trimmed = (payload || '').trim();
+        if (trimmed) parts.push(`-d '${trimmed}'`);
+
+        document.getElementById('curlInput').value = parts.join(' \\\n  ');
+        saveFormValues();
+        markDirty();
+        closeCurlEditPanel();
+        document.getElementById('curlInput').focus();
+    }
+
+    function toggleCurlEditPanel() {
+        const panel = document.getElementById('curlEditPanel');
+        const btn   = document.getElementById('curlEditToggleBtn');
+        const open  = panel.style.display === 'none';
+        if (open) blurIfCoveredByPanel(panel.parentElement);
+        panel.style.display = open ? 'block' : 'none';
+        btn.querySelector('.caret').classList.toggle('open', open);
+        if (open) {
+            populateCurlEditPanel();
+            closeNewProjectPanel();
+            closeExportPanel();
+            document.getElementById('curlEditUrl').focus();
+        }
+    }
+    function closeCurlEditPanel() {
+        if (document.getElementById('curlEditPanel').style.display !== 'none') toggleCurlEditPanel();
     }
 
     // Force-close helpers (vs. the toggle functions) — used for mutual
