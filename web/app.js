@@ -296,9 +296,13 @@ async function loadHistory() {
     updateBulkUI();
 
     // If there's a run in progress that we don't know about (started externally),
-    // populate the form so the dashboard reflects what's running
+    // populate the form so the dashboard reflects what's running. Skip this
+    // while the user is actively comparing 2+ runs — comparing a still-running
+    // run is a deliberate choice (see the refresh hook below) and this block
+    // would otherwise tear down that view and jump back to the single-run
+    // detail every ~5s, since compare mode never sets currentRunId.
     const activeRun = runs.find(r => ['created', 'running'].includes(r.status));
-    if (activeRun && activeRun.id !== currentRunId) {
+    if (activeRun && activeRun.id !== currentRunId && selectedRunIds.size <= 1) {
       currentRunId = activeRun.id;
       selectedRunIds.clear();
       selectedRunIds.add(activeRun.id);
@@ -318,9 +322,19 @@ async function loadHistory() {
       ]);
       $('runBtn').disabled = true;
       $('stopBtn').style.display = 'inline-block';
-      $('detailOutput').textContent = 'Run in progress…';
+      // Leave blank rather than a placeholder — startPolling() below fills
+      // this in with live metrics within its first tick.
+      $('detailOutput').textContent = '';
       showLiveDashboardLink(activeRun.id);
       startPolling();
+    }
+
+    // If the compare view is currently showing 2+ runs, refresh it on the
+    // same 5s cadence as the rest of history — otherwise a still-running
+    // run's live metrics would freeze at whatever they were when the
+    // comparison was first opened.
+    if ($('compareDetail').style.display !== 'none' && selectedRunIds.size > 1) {
+      renderCompareDetail([...selectedRunIds]);
     }
 
     if (!initialLoadDone) {
@@ -645,7 +659,18 @@ async function selectRun(id) {
       return;
     }
 
-    $('detailOutput').textContent = stdoutR.ok ? await stdoutR.text() : 'No output yet.';
+    if (['running', 'created', 'stopping'].includes(run.status)) {
+      // Summary isn't ready yet — leave the panel blank rather than dumping
+      // raw stdout (k6's startup banner/live progress text), which reads as
+      // a confusing, self-correcting flash right after a run starts.
+      // startPolling() takes over and renders the properly formatted report
+      // (live metrics, then the final summary) once there's real data.
+      $('detailOutput').textContent = '';
+    } else {
+      // Terminal but no summary (e.g. failed) — raw stdout is the only
+      // diagnostic info available, so show it.
+      $('detailOutput').textContent = stdoutR.ok ? await stdoutR.text() : 'No output yet.';
+    }
   } catch {
     $('detailOutput').textContent = 'Failed to load output.';
   }
@@ -998,7 +1023,7 @@ async function renderCompareDetail(ids) {
       ]);
       const run    = runR.ok    ? await runR.json()    : {};
       const { status } = statusR.ok ? await statusR.json() : {};
-      let summaryData = null, elapsedMs = null;
+      let summaryData = null, elapsedMs = null, liveMetrics = null;
       if (['finished', 'stopped'].includes(status)) {
         const sr = await fetch(`${API}/runs/${id}/summary`);
         if (sr.ok) {
@@ -1006,17 +1031,25 @@ async function renderCompareDetail(ids) {
           elapsedMs = (run.startedAt && run.finishedAt)
             ? new Date(run.finishedAt) - new Date(run.startedAt) : null;
         }
+      } else if (['created', 'running', 'stopping'].includes(status)) {
+        // No summary yet — pull the same live-metrics snapshot the single-run
+        // view uses, so a run in progress shows more than just "Started".
+        const mr = await fetch(`${API}/runs/${id}/metrics`);
+        if (mr.ok) {
+          liveMetrics = await mr.json();
+          elapsedMs = run.startedAt ? Date.now() - new Date(run.startedAt).getTime() : null;
+        }
       }
-      return { id, run, status, summaryData, elapsedMs };
+      return { id, run, status, summaryData, elapsedMs, liveMetrics };
     } catch {
-      return { id, run: {}, status: 'error', summaryData: null, elapsedMs: null };
+      return { id, run: {}, status: 'error', summaryData: null, elapsedMs: null, liveMetrics: null };
     }
   }));
 
   $('compareGrid').innerHTML = results.map(renderCompareCard).join('');
 }
 
-function renderCompareCard({ id, run, status, summaryData, elapsedMs }) {
+function renderCompareCard({ id, run, status, summaryData, elapsedMs, liveMetrics }) {
   const name   = run.config?.name     || '';
   const url    = run.config?.url      || '—';
   const vus    = run.config?.users    ?? '?';
@@ -1029,9 +1062,31 @@ function renderCompareCard({ id, run, status, summaryData, elapsedMs }) {
   const box = (label, value) =>
     `<div class="metric-box"><div class="metric-label">${label}</div><div class="metric-value">${value ?? '—'}</div></div>`;
 
-  const metricPairs = summaryData
-    ? [['Started', timeStr], ...summaryMetrics(summaryData, elapsedMs)]
-    : [['Started', timeStr]];
+  let metricPairs;
+  if (summaryData) {
+    metricPairs = [['Started', timeStr], ...summaryMetrics(summaryData, elapsedMs)];
+  } else if (liveMetrics) {
+    const elapsedSec = elapsedMs != null ? elapsedMs / 1000 : null;
+    const elapsed = elapsedSec != null
+      ? (elapsedSec < 60
+          ? `${elapsedSec.toFixed(1)} s`
+          : `${Math.floor(elapsedSec / 60)}m ${(elapsedSec % 60).toFixed(0)}s`)
+      : null;
+    const rps = (liveMetrics.requests && elapsedSec > 0) ? (liveMetrics.requests / elapsedSec).toFixed(2) : null;
+    metricPairs = [
+      ['Started',    timeStr],
+      ...(elapsed                     ? [['Elapsed',    elapsed]]                          : []),
+      ...(liveMetrics.requests != null ? [['Requests',   liveMetrics.requests]]            : []),
+      ...(rps != null                  ? [['Req/s',      rps]]                             : []),
+      ...(liveMetrics.avg      != null ? [['Avg Latency', `${liveMetrics.avg} ms`]]        : []),
+      ...(liveMetrics.p95      != null ? [['p95 Latency', `${liveMetrics.p95} ms`]]        : []),
+      ...(liveMetrics.p99      != null ? [['p99 Latency', `${liveMetrics.p99} ms`]]        : []),
+      ...(liveMetrics.max      != null ? [['Max Latency', `${liveMetrics.max} ms`]]        : []),
+      ...(liveMetrics.errorRate != null ? [['Error Rate', `${liveMetrics.errorRate} %`]]   : []),
+    ];
+  } else {
+    metricPairs = [['Started', timeStr]];
+  }
 
   const metricsHtml = `<div class="metric-grid" style="margin-top:0.65rem;">${metricPairs.map(([l, v]) => box(l, v)).join('')}</div>`;
 

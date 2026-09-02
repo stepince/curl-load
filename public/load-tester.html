@@ -122,6 +122,19 @@
 
         /* Layout */
 
+        /* Caret icon for toggle buttons (New/Export/Advanced) — a single glyph
+           rotated via CSS for the "open" state, rather than swapping to a
+           different Unicode up/down-triangle character. Different glyphs can
+           have mismatched font metrics and render at visibly different sizes;
+           rotating one glyph guarantees both states look identical. */
+        .caret {
+            display: inline-block;
+            transition: transform 0.15s ease;
+        }
+        .caret.open {
+            transform: rotate(180deg);
+        }
+
         /* Variables */
         #variables {
             margin-top: 0.5rem;
@@ -303,10 +316,10 @@
     <label for="projectName" style="margin:0; white-space:nowrap;">Name:</label>
     <input id="projectName" type="text" placeholder="e.g. my-project" style="width:auto; margin:0; flex:1; min-width:140px;" />
     <div style="display:flex; gap:0.4rem; margin:0; flex-wrap:wrap;">
-        <button id="newProjectToggleBtn" onclick="toggleNewProjectPanel()" style="background:#475569;">New ▾</button>
+        <button id="newProjectToggleBtn" onclick="toggleNewProjectPanel()" style="background:#475569;">New <span class="caret">▾</span></button>
         <button id="saveProfileBtn" onclick="saveProfile()">Save</button>
         <button onclick="cloneProfile()">Clone</button>
-        <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export ▾</button>
+        <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export <span class="caret">▾</span></button>
         <button onclick="document.getElementById('importFileInput').click()" style="background:#475569;">Import</button>
         <button onclick="deleteProfile()" style="background:#ef4444;">Delete</button>
         <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importProjectsFromFile(this.files[0])" />
@@ -320,7 +333,7 @@
                 z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #334155;">
         <div style="display:flex; gap:0.5rem; margin-bottom:0.65rem; flex-wrap:wrap;">
             <button onclick="startNewProjectBasic()">Basic</button>
-            <button id="newProjectAdvancedToggleBtn" onclick="toggleNewProjectAdvanced()" style="background:#475569;">Advanced — build from fields ▾</button>
+            <button id="newProjectAdvancedToggleBtn" onclick="toggleNewProjectAdvanced()" style="background:#475569;">Advanced — build from fields <span class="caret">▾</span></button>
         </div>
         <div id="newProjectAdvancedFields" style="display:none; flex-direction:column; gap:0.5rem;">
             <label for="newProjectUrl" style="margin:0;">URL</label>
@@ -1639,15 +1652,28 @@
         document.getElementById('projectName').focus();
     }
 
+    // The New/Export panels are position:absolute and overlay the form below
+    // the toolbar when open. If focus is left in a now-covered field (e.g.
+    // the curl command box), the user can keep typing into something they
+    // can't see. Blur it so focus state matches what's actually visible.
+    function blurIfCoveredByPanel() {
+        const toolbar = document.getElementById('newProjectPanel').parentElement;
+        const active = document.activeElement;
+        if (active && active !== document.body && !toolbar.contains(active)) {
+            active.blur();
+        }
+    }
+
     function toggleNewProjectPanel() {
         const panel = document.getElementById('newProjectPanel');
         const btn   = document.getElementById('newProjectToggleBtn');
         const open  = panel.style.display === 'none';
+        if (open) blurIfCoveredByPanel();
         panel.style.display = open ? 'block' : 'none';
-        btn.textContent = open ? 'New ▴' : 'New ▾';
+        btn.querySelector('.caret').classList.toggle('open', open);
         if (!open) {
             document.getElementById('newProjectAdvancedFields').style.display = 'none';
-            document.getElementById('newProjectAdvancedToggleBtn').textContent = 'Advanced — build from fields ▾';
+            document.getElementById('newProjectAdvancedToggleBtn').querySelector('.caret').classList.remove('open');
             document.getElementById('newProjectUrl').value = '';
             document.getElementById('newProjectContentType').value = '';
             document.getElementById('newProjectPayload').value = '';
@@ -1666,7 +1692,7 @@
         const btn = document.getElementById('newProjectAdvancedToggleBtn');
         const open = el.style.display === 'none';
         el.style.display = open ? 'flex' : 'none';
-        btn.textContent = open ? 'Advanced — build from fields ▴' : 'Advanced — build from fields ▾';
+        btn.querySelector('.caret').classList.toggle('open', open);
         if (open) document.getElementById('newProjectUrl').focus();
     }
 
@@ -2123,8 +2149,9 @@
         const panel = document.getElementById('exportPanel');
         const btn   = document.getElementById('exportToggleBtn');
         const open  = panel.style.display === 'none';
+        if (open) blurIfCoveredByPanel();
         panel.style.display = open ? 'block' : 'none';
-        btn.textContent = open ? 'Export ▴' : 'Export ▾';
+        btn.querySelector('.caret').classList.toggle('open', open);
         if (open) renderExportPanel();
         if (open) closeNewProjectPanel(); // only one floating panel open at a time
     }
