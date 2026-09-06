@@ -2,14 +2,17 @@
 // Licensed under custom license. See LICENSE file.
 // curl-load web UI — vanilla JS, no frameworks
 import express from 'express';
+import swaggerUi from 'swagger-ui-express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 import { runsRouter } from './src/routes/runs.js';
 import { proxyRouter } from './src/routes/proxy.js';
 import { getRun, getActiveDashboardPort } from './src/services/run-store.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const openapiSpec = JSON.parse(readFileSync(join(__dirname, 'openapi.json'), 'utf8'));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -100,6 +103,10 @@ app.get('/app-info', (_req, res) => res.json({
 
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// API docs — Swagger UI at /docs, raw spec at /openapi.json
+app.get('/openapi.json', (_req, res) => res.json(openapiSpec));
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
 
 // Catch-all: proxy any unrecognised path to the active k6 dashboard.
 // This transparently handles whatever absolute paths the dashboard SPA uses

@@ -1,0 +1,327 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "curl-load runner API",
+    "version": "1.6.0",
+    "description": "HTTP API that manages k6 load-test processes: start/stop runs, poll status, and pull metrics, summaries, dashboards, and PDF reports."
+  },
+  "servers": [
+    { "url": "/" }
+  ],
+  "tags": [
+    { "name": "runs", "description": "Create, inspect, and manage load-test runs" },
+    { "name": "proxy", "description": "One-off request proxy used by the workbench's \"Run Single\"" },
+    { "name": "meta", "description": "Health and app metadata" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["meta"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string", "example": "ok" } } } } }
+          }
+        }
+      }
+    },
+    "/app-info": {
+      "get": {
+        "tags": ["meta"],
+        "summary": "Machine-readable app metadata (used by Claude-in-Chrome)",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "List runs, newest first",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 }, "description": "Maximum number of runs to return" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of runs",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Run" } } } }
+          }
+        }
+      },
+      "post": {
+        "tags": ["runs"],
+        "summary": "Start a new load test",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRunRequest" } } }
+        },
+        "responses": {
+          "202": {
+            "description": "Run accepted and starting",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string" }, "status": { "type": "string" } } } } }
+          },
+          "400": { "description": "Missing url", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/compare/report.pdf": {
+      "post": {
+        "tags": ["runs"],
+        "summary": "Generate a comparison PDF for two or more runs",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "ids": { "type": "array", "items": { "type": "string" }, "minItems": 2 } }, "required": ["ids"] } } }
+        },
+        "responses": {
+          "200": { "description": "PDF file", "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "description": "ids must be an array of at least 2 run IDs", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Get full run metadata",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Run" } } } },
+          "404": { "description": "Run not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["runs"],
+        "summary": "Remove a finished/failed/stopped run",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string" }, "deleted": { "type": "boolean" } } } } } },
+          "404": { "description": "Run not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Run is still created/running/stopping", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/status": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Poll run status",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object", "properties": {
+              "id": { "type": "string" },
+              "status": { "type": "string", "enum": ["created", "running", "finished", "failed", "stopping", "stopped"] },
+              "startedAt": { "type": "string", "nullable": true, "format": "date-time" },
+              "finishedAt": { "type": "string", "nullable": true, "format": "date-time" }
+            } } } }
+          },
+          "404": { "description": "Run not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/summary": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Final summary JSON written by k6's handleSummary",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "k6 summary object", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "404": { "description": "Run not found or summary not available yet", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/stdout": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Raw k6 stdout (structured summary text, or streamed output if still running)",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "Plain text output", "content": { "text/plain": { "schema": { "type": "string" } } } },
+          "404": { "description": "Run not found or stdout not available yet", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/metrics": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Live metrics parsed from the k6 JSON metrics stream",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "type": "object", "properties": {
+              "requests": { "type": "integer" },
+              "avg": { "type": "string", "nullable": true },
+              "p95": { "type": "string", "nullable": true },
+              "p99": { "type": "string", "nullable": true },
+              "max": { "type": "string", "nullable": true },
+              "errorRate": { "type": "string" },
+              "timeseries": { "type": "array", "items": { "type": "object", "properties": {
+                "t": { "type": "integer" }, "avg": { "type": "number" }, "p95": { "type": "number" }, "p99": { "type": "number" }
+              } } }
+            } } } }
+          },
+          "404": { "description": "Run not found or metrics not available yet", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/dashboard": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Exported k6 HTML dashboard report",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "HTML dashboard (or a loading page while it's still being generated)", "content": { "text/html": { "schema": { "type": "string" } } } },
+          "404": { "description": "Run not found, dashboard not enabled, or not available", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/dashboard/live/{path}": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Reverse proxy to k6's live web dashboard while the run is in progress",
+        "description": "Wildcard proxy — forwards to the k6 process's own xk6-dashboard server (including WebSocket upgrades) so its internal port never needs to be exposed externally.",
+        "parameters": [
+          { "$ref": "#/components/parameters/RunId" },
+          { "name": "path", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Any sub-path/asset the k6 dashboard SPA requests" }
+        ],
+        "responses": {
+          "200": { "description": "Proxied response from the k6 dashboard" },
+          "404": { "description": "Live dashboard not available", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/report.pdf": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Generate a PDF report (metrics summary + k6 dashboard screenshot)",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "PDF file", "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } } },
+          "404": { "description": "Run not found or summary not available yet", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "description": "PDF generation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/client.crt": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Download the client certificate used for this run",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "PEM certificate", "content": { "application/x-pem-file": { "schema": { "type": "string" } } } },
+          "404": { "description": "Run not found or certificate not available", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/client.key": {
+      "get": {
+        "tags": ["runs"],
+        "summary": "Download the private key used for this run",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "PEM private key", "content": { "application/x-pem-file": { "schema": { "type": "string" } } } },
+          "404": { "description": "Run not found or key not available", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/runs/{id}/stop": {
+      "post": {
+        "tags": ["runs"],
+        "summary": "Send SIGINT to the running k6 process",
+        "parameters": [ { "$ref": "#/components/parameters/RunId" } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "id": { "type": "string" }, "status": { "type": "string" } } } } } },
+          "404": { "description": "Run not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Run is not created/running", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/proxy": {
+      "post": {
+        "tags": ["proxy"],
+        "summary": "Fire a single one-off HTTP request server-side (used by the workbench's \"Run Single\")",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": {
+            "url": { "type": "string" },
+            "method": { "type": "string", "default": "GET" },
+            "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+            "body": {}
+          }, "required": ["url"] } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Response from the proxied request",
+            "content": { "application/json": { "schema": { "type": "object", "properties": {
+              "status": { "type": "integer" },
+              "statusText": { "type": "string" },
+              "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+              "body": { "type": "string" },
+              "elapsed": { "type": "integer", "description": "milliseconds" }
+            } } } }
+          },
+          "400": { "description": "Missing url", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "502": { "description": "Upstream request failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "RunId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "Run UUID returned from POST /runs"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } }
+      },
+      "CreateRunRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": { "type": "string", "example": "https://example.com" },
+          "method": { "type": "string", "default": "GET" },
+          "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+          "body": {},
+          "users": { "type": "integer", "default": 10, "description": "Peak virtual users" },
+          "duration": { "type": "string", "default": "30s", "description": "e.g. \"30s\", \"5m\" — ignored if iterations is set" },
+          "iterations": { "type": "integer", "description": "Fixed iteration count instead of a time-based duration" },
+          "name": { "type": "string" },
+          "variables": { "type": "object", "description": "Sequential/random/constant variable definitions resolved at k6 runtime" },
+          "pause": { "type": "number", "default": 1, "description": "Seconds paused between requests" },
+          "timeout": { "type": "number", "default": 30 },
+          "responseContentType": { "type": "string", "default": "*" },
+          "validationExpression": { "type": "string" },
+          "clientCert": { "type": "object", "properties": { "cert": { "type": "string" }, "key": { "type": "string" } }, "description": "PEM cert/key pair for mTLS" },
+          "dashboard": { "type": "boolean", "default": true, "description": "Whether to export a k6 web-dashboard report for this run" }
+        }
+      },
+      "Run": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["created", "running", "finished", "failed", "stopping", "stopped"] },
+          "config": { "type": "object", "description": "Sanitized run configuration (clientCert omitted)" },
+          "hasCert": { "type": "boolean" },
+          "dashboard": { "type": "boolean" },
+          "dashboardLive": { "type": "string", "nullable": true },
+          "dashboardReport": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "startedAt": { "type": "string", "nullable": true, "format": "date-time" },
+          "finishedAt": { "type": "string", "nullable": true, "format": "date-time" },
+          "exitCode": { "type": "integer", "nullable": true }
+        }
+      }
+    }
+  }
+}

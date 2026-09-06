@@ -230,6 +230,9 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Pinned (unlike chart.js above): a silent parser change breaking valid
+         YAML is a worse failure mode here than a chart style shift. -->
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.1/dist/js-yaml.min.js"></script>
 </head>
 <body onload="window.name='curl-load-workbench'">
 <h1 style="display:flex; align-items:center;">
@@ -320,9 +323,8 @@
         <button id="saveProfileBtn" onclick="saveProfile()">Save</button>
         <button onclick="cloneProfile()">Clone</button>
         <button id="exportToggleBtn" onclick="toggleExportPanel()" style="background:#475569;">Export <span class="caret">▾</span></button>
-        <button onclick="document.getElementById('importFileInput').click()" style="background:#475569;">Import</button>
-        <button onclick="deleteProfile()" style="background:#ef4444;">Delete</button>
-        <input type="file" id="importFileInput" accept=".json" style="display:none;" onchange="importProjectsFromFile(this.files[0])" />
+        <button id="importToggleBtn" onclick="toggleImportPanel()" style="background:#475569;">Import <span class="caret">▾</span></button>
+        <button id="deleteToggleBtn" onclick="toggleDeletePanel()" style="background:#ef4444;">Delete <span class="caret">▾</span></button>
     </div>
     <div id="unsavedBadge" style="display:none; width:100%; margin:0; padding:0.2rem 0 0; color:#f59e0b; font-size:0.82rem;">· unsaved changes — click Save to keep them</div>
 
@@ -370,6 +372,48 @@
             <button onclick="exportSelectedProjects()" style="margin:0; margin-left:auto;">Export Selected</button>
         </div>
         <div id="exportProjectList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:200px; overflow-y:auto;"></div>
+    </div>
+
+    <!-- Import panel — nested here (not a sibling) so position:absolute
+         anchors to this bar's position:relative, not to <body> -->
+    <div id="importPanel" class="card"
+         style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:0.4rem;
+                z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #334155;
+                max-height:70vh; overflow-y:auto;">
+
+        <!-- Step 1: pick a file -->
+        <div id="importStep1" style="display:flex; flex-direction:column; gap:0.5rem;">
+            <div style="font-size:0.82rem; color:#94a3b8;">
+                Select a curl-load export (.json) or an OpenAPI spec (.json/.yaml/.yml).
+            </div>
+            <input type="file" id="importFileInput" accept=".json,.yaml,.yml"
+                   onchange="handleImportFileSelected(this.files[0])" style="width:100%; margin:0;" />
+            <div id="importError" style="display:none; color:#f87171; font-size:0.82rem;"></div>
+        </div>
+
+        <!-- Step 2: review + overwrite -->
+        <div id="importStep2" style="display:none; flex-direction:column; gap:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <button id="importSelectAllBtn" onclick="toggleImportSelectAll()" style="margin:0; background:#475569;">Select All</button>
+                <span id="importSummaryLabel" style="font-size:0.8rem; color:#94a3b8;"></span>
+            </div>
+            <div id="importReviewList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:280px; overflow-y:auto;"></div>
+            <button onclick="applyImportSelection()" style="margin:0; align-self:flex-start; float:left;">Import Selected</button>
+        </div>
+    </div>
+
+    <!-- Delete panel — nested here (not a sibling) so position:absolute
+         anchors to this bar's position:relative, not to <body> -->
+    <div id="deletePanel" class="card"
+         style="display:none; flex-direction:column; gap:0.5rem; position:absolute; top:100%; left:0; right:0; margin-top:0.4rem;
+                z-index:30; padding:0.85rem 1.25rem; box-shadow:0 12px 32px rgba(0,0,0,0.5); border:1px solid #ef4444;
+                max-height:70vh; overflow-y:auto;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+            <button id="deleteSelectAllBtn" onclick="toggleDeleteSelectAll()" style="margin:0; background:#475569;">Select All</button>
+            <span id="deleteSummaryLabel" style="font-size:0.8rem; color:#94a3b8;"></span>
+        </div>
+        <div id="deleteReviewList" style="display:flex; flex-direction:column; gap:0.25rem; margin-top:0.5rem; max-height:280px; overflow-y:auto;"></div>
+        <button onclick="deleteSelectedProjects()" style="margin:0.5rem 0 0; align-self:flex-start; float:left; background:#ef4444;">Delete Selected</button>
     </div>
 </div>
 
@@ -790,12 +834,19 @@
             const exportBtn   = document.getElementById('exportToggleBtn');
             const editPanel   = document.getElementById('curlEditPanel');
             const editBtn     = document.getElementById('curlEditToggleBtn');
-            // closeNewProjectPanel()/closeExportPanel()/closeCurlEditPanel() are
-            // idempotent (only toggle if currently open), so it's safe to call
-            // these on every focus/click without checking display state here.
+            const importPanel = document.getElementById('importPanel');
+            const importBtn   = document.getElementById('importToggleBtn');
+            const deletePanel = document.getElementById('deletePanel');
+            const deleteBtn   = document.getElementById('deleteToggleBtn');
+            // closeNewProjectPanel()/closeExportPanel()/closeCurlEditPanel()/
+            // closeImportPanel()/closeDeletePanel() are idempotent (only
+            // toggle if currently open), so it's safe to call these on every
+            // focus/click without checking display state here.
             if (!newPanel.contains(target) && target !== newBtn) closeNewProjectPanel();
             if (!exportPanel.contains(target) && target !== exportBtn) closeExportPanel();
             if (!editPanel.contains(target) && target !== editBtn) closeCurlEditPanel();
+            if (!importPanel.contains(target) && target !== importBtn) closeImportPanel();
+            if (!deletePanel.contains(target) && target !== deleteBtn) closeDeletePanel();
         };
         document.addEventListener('focusin', (e) => closeFloatingPanelsIfOutside(e.target));
         document.addEventListener('click', (e) => closeFloatingPanelsIfOutside(e.target));
@@ -1716,6 +1767,8 @@
         }
         if (open) closeExportPanel(); // only one floating panel open at a time
         if (open) closeCurlEditPanel(); // only one floating panel open at a time
+        if (open) closeImportPanel(); // only one floating panel open at a time
+        if (open) closeDeletePanel(); // only one floating panel open at a time
     }
 
     function startNewProjectBasic() {
@@ -1813,20 +1866,93 @@
         loadProfile();
     }
 
-    /** Delete selected profile */
-    function deleteProfile() {
-        const select = document.getElementById('scenarioSelect');
-        const current = select.value;
-        if (!current) {
-            alert("Select a profile to delete first.");
+    function toggleDeletePanel() {
+        const panel = document.getElementById('deletePanel');
+        const btn   = document.getElementById('deleteToggleBtn');
+        const open  = panel.style.display === 'none';
+        if (open) blurIfCoveredByPanel(panel.parentElement);
+        panel.style.display = open ? 'flex' : 'none';
+        btn.querySelector('.caret').classList.toggle('open', open);
+        if (open) {
+            renderDeletePanel();
+            closeNewProjectPanel();
+            closeExportPanel();
+            closeImportPanel();
+            closeCurlEditPanel();
+        }
+    }
+    function closeDeletePanel() {
+        if (document.getElementById('deletePanel').style.display !== 'none') toggleDeletePanel();
+    }
+
+    // Same review-table shape as the Import panel (checkbox/name/method/url),
+    // but listing every saved project rather than candidates from a file —
+    // deleting is destructive with no undo, so unlike Import this still asks
+    // for a native confirm() before applying, naming exactly what's selected.
+    function renderDeletePanel() {
+        const list     = document.getElementById('deleteReviewList');
+        const profiles = getAllProfiles();
+        const names    = Object.keys(profiles);
+        document.getElementById('deleteSelectAllBtn').textContent = 'Select All';
+        document.getElementById('deleteSummaryLabel').textContent = `${names.length} project${names.length !== 1 ? 's' : ''}`;
+
+        if (names.length === 0) {
+            list.innerHTML = '<span style="font-size:0.82rem; color:#475569;">No saved projects.</span>';
             return;
         }
-        if (!confirm(`Delete profile '${current}'?`)) return;
+
+        const rows = names.map(name => {
+            const parsed = parseCurlCommand(profiles[name].curlInput || '');
+            return `
+                <tr onmouseover="this.style.background='#252d3d'" onmouseout="this.style.background=''">
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle;">
+                        <input type="checkbox" class="delete-candidate-cb" value="${escapeHtml(name)}"
+                               style="width:auto; margin:0; accent-color:#ef4444;" />
+                    </td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle; font-size:0.85rem; color:#e2e8f0;">${escapeHtml(name)}</td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle; font-size:0.8rem; color:#94a3b8; white-space:nowrap;">${escapeHtml(parsed.method || 'GET')}</td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle; font-size:0.8rem; color:#94a3b8; word-break:break-all;">${escapeHtml(parsed.url || '')}</td>
+                </tr>`;
+        }).join('');
+
+        list.innerHTML = `
+            <table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:0.85rem; color:#e2e8f0; font-family:system-ui;">
+                <colgroup>
+                    <col style="width:28px;">
+                    <col style="width:20%;">
+                    <col style="width:70px;">
+                    <col>
+                </colgroup>
+                <thead>
+                    <tr style="text-align:left; color:#64748b; font-size:0.75rem;">
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;"></th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">Name</th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">Method</th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">URL</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    function toggleDeleteSelectAll() {
+        const allChecked = [...document.querySelectorAll('.delete-candidate-cb')].every(cb => cb.checked);
+        document.querySelectorAll('.delete-candidate-cb').forEach(cb => cb.checked = !allChecked);
+    }
+
+    function deleteSelectedProjects() {
+        const selected = [...document.querySelectorAll('.delete-candidate-cb:checked')].map(cb => cb.value);
+        if (selected.length === 0) { alert('Select at least one project to delete.'); return; }
+        if (!confirm(`Delete ${selected.length} project${selected.length !== 1 ? 's' : ''}?\n\n${selected.join('\n')}`)) return;
+
         const profiles = getAllProfiles();
-        delete profiles[current];
+        const currentlyLoaded = document.getElementById('scenarioSelect').value;
+        selected.forEach(name => delete profiles[name]);
         saveAllProfiles(profiles);
         refreshProfileDropdown();
-        addProfile();
+        if (document.getElementById('exportPanel').style.display !== 'none') renderExportPanel();
+        closeDeletePanel();
+        if (selected.includes(currentlyLoaded)) addProfile();
     }
 
     // ── Auto Extract Variables ────────────────────────────────────────────────
@@ -2191,6 +2317,8 @@
         if (open) renderExportPanel();
         if (open) closeNewProjectPanel(); // only one floating panel open at a time
         if (open) closeCurlEditPanel();   // only one floating panel open at a time
+        if (open) closeImportPanel();     // only one floating panel open at a time
+        if (open) closeDeletePanel();     // only one floating panel open at a time
     }
 
     // Ensures `value` is selectable in a fixed-option <select>, injecting a
@@ -2277,6 +2405,8 @@
             populateCurlEditPanel();
             closeNewProjectPanel();
             closeExportPanel();
+            closeImportPanel();
+            closeDeletePanel();
             document.getElementById('curlEditUrl').focus();
         }
     }
@@ -2333,39 +2463,298 @@
         URL.revokeObjectURL(url);
     }
 
-    function importProjectsFromFile(file) {
+    // ── Import panel ─────────────────────────────────────────────────────────
+    // Working list of {name, profileData, preview} candidates found in the
+    // last selected file, between file-selection (Step 1) and save (Step 3).
+    let _importCandidates = [];
+
+    function toggleImportPanel() {
+        const panel = document.getElementById('importPanel');
+        const btn   = document.getElementById('importToggleBtn');
+        const open  = panel.style.display === 'none';
+        if (open) blurIfCoveredByPanel(panel.parentElement);
+        panel.style.display = open ? 'block' : 'none';
+        btn.querySelector('.caret').classList.toggle('open', open);
+        if (open) {
+            resetImportPanel();
+            closeNewProjectPanel();
+            closeExportPanel();
+            closeCurlEditPanel();
+            closeDeletePanel();
+        }
+    }
+    function closeImportPanel() {
+        if (document.getElementById('importPanel').style.display !== 'none') toggleImportPanel();
+    }
+
+    function resetImportPanel() {
+        document.getElementById('importStep1').style.display = 'flex';
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importFileInput').value = '';
+        document.getElementById('importError').style.display = 'none';
+        _importCandidates = [];
+    }
+
+    function handleImportFileSelected(file) {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = (e) => {
-            let parsed;
-            try { parsed = JSON.parse(e.target.result); }
-            catch { alert('Invalid JSON file.'); return; }
+            let result;
+            try {
+                result = detectAndParseImportFile(file.name, e.target.result);
+            } catch (err) {
+                const errEl = document.getElementById('importError');
+                errEl.textContent = err.message;
+                errEl.style.display = 'block';
+                return;
+            }
+            document.getElementById('importError').style.display = 'none';
 
-            const incoming = parsed.projects;
-            if (!incoming || typeof incoming !== 'object' || Object.keys(incoming).length === 0) {
-                alert('No valid projects found in file.');
+            _importCandidates = result.kind === 'native'
+                ? Object.entries(result.data.projects)
+                    .filter(([name, data]) => name && typeof data === 'object')
+                    .map(([name, profileData]) => {
+                        const parsed = parseCurlCommand(profileData.curlInput || '');
+                        return { name, profileData, method: parsed.method || 'GET', url: parsed.url || '' };
+                    })
+                : convertOpenApiToProjects(result.data);
+
+            if (_importCandidates.length === 0) {
+                const errEl = document.getElementById('importError');
+                errEl.textContent = 'No projects found in file.';
+                errEl.style.display = 'block';
                 return;
             }
 
-            const profiles = getAllProfiles();
-            let imported = 0;
-            Object.entries(incoming).forEach(([name, data]) => {
-                if (!name || typeof data !== 'object') return;
-                const targetName = profiles[name] ? `${name}-imported` : name;
-                profiles[targetName] = data;
-                imported++;
-            });
-
-            if (imported === 0) { alert('No valid projects to import.'); return; }
-
-            saveAllProfiles(profiles);
-            refreshProfileDropdown();
-            document.getElementById('importFileInput').value = '';
-            // Refresh export panel if open
-            if (document.getElementById('exportPanel').style.display !== 'none') renderExportPanel();
-            alert(`Imported ${imported} project${imported !== 1 ? 's' : ''}.`);
+            renderImportReviewList(_importCandidates);
+            document.getElementById('importStep1').style.display = 'none';
+            document.getElementById('importStep2').style.display = 'flex';
         };
         reader.readAsText(file);
+    }
+
+    // Pure: parses `text` as our own export format or an OpenAPI spec (JSON
+    // or YAML). Throws a descriptive Error on failure rather than alerting,
+    // so the caller can show it inline without losing Step 1's file picker.
+    function detectAndParseImportFile(filename, text) {
+        let parsed;
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            try {
+                parsed = jsyaml.load(text);
+            } catch {
+                throw new Error('Could not parse file as JSON or YAML.');
+            }
+        }
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error('Could not parse file as JSON or YAML.');
+        }
+        if (parsed.projects && typeof parsed.projects === 'object') {
+            return { kind: 'native', data: parsed };
+        }
+        if ((typeof parsed.openapi === 'string' && parsed.openapi.startsWith('3')) ||
+            (typeof parsed.swagger === 'string' && parsed.swagger.startsWith('2'))) {
+            return { kind: 'openapi', data: parsed };
+        }
+        throw new Error('File is not a recognized curl-load export or OpenAPI spec.');
+    }
+
+    // Builds a JSON request-body placeholder from a schema: uses each
+    // property's `example`/`default` when the spec provides one, otherwise
+    // falls back to a type-appropriate empty value ('', 0, false, [], {}).
+    // Not full JSON-Schema resolution (no $ref, oneOf/allOf, etc.) — just
+    // enough to reflect what the spec actually documents instead of a bare {}.
+    function buildExampleBodyFromSchema(schema) {
+        if (!schema || typeof schema !== 'object') return {};
+        if (schema.example !== undefined) return schema.example;
+        if (schema.type === 'object' || schema.properties) {
+            const obj = {};
+            for (const [key, propSchema] of Object.entries(schema.properties || {})) {
+                if (propSchema.example !== undefined) obj[key] = propSchema.example;
+                else if (propSchema.default !== undefined) obj[key] = propSchema.default;
+                else if (propSchema.type === 'string') obj[key] = '';
+                else if (propSchema.type === 'number' || propSchema.type === 'integer') obj[key] = 0;
+                else if (propSchema.type === 'boolean') obj[key] = false;
+                else if (propSchema.type === 'array') obj[key] = [];
+                else if (propSchema.type === 'object') obj[key] = buildExampleBodyFromSchema(propSchema);
+                else obj[key] = null;
+            }
+            return obj;
+        }
+        return {};
+    }
+
+    // Converts every operation in an OpenAPI (v2 or v3) spec into a candidate
+    // project. Deliberately scoped: only the Content-Type header is set (auth
+    // and other headers are better configured once via the Auth section than
+    // per-import). A JSON request body is built from the schema's example/
+    // default values (buildExampleBodyFromSchema) when present, else a
+    // type-appropriate empty placeholder — no $ref or oneOf/allOf resolution.
+    // Path params ({id}) become curl-load's own ${id} variable syntax,
+    // pre-registered in the resulting project's Variables list.
+    function convertOpenApiToProjects(spec) {
+        const isV3 = typeof spec.openapi === 'string';
+        let baseUrl = isV3
+            ? spec.servers?.[0]?.url
+            : (spec.host ? `${spec.schemes?.[0] || 'https'}://${spec.host}${spec.basePath || ''}` : null);
+        // parseCurlCommand() prepends http:// to any bare token it finds, so a
+        // path-only URL like /users/{id} would parse with "users" as the
+        // host — actively wrong, not just incomplete. An obviously-fake
+        // placeholder is easier to spot and fix than a subtly-mangled one.
+        if (!baseUrl) baseUrl = 'https://api.example.com';
+        baseUrl = baseUrl.replace(/\/$/, '');
+
+        const seenSynthesized = {};
+        const candidates = [];
+
+        for (const [path, pathItem] of Object.entries(spec.paths || {})) {
+            for (const method of ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']) {
+                const operation = pathItem[method];
+                if (!operation) continue;
+
+                let name = operation.operationId;
+                if (!name) {
+                    const base = `${method.toUpperCase()} ${path}`;
+                    const count = (seenSynthesized[base] = (seenSynthesized[base] || 0) + 1);
+                    name = count === 1 ? base : `${base} (${count})`;
+                }
+
+                const urlPath = path.replace(/\{(\w+)\}/g, '${$1}');
+                const url = baseUrl + urlPath;
+
+                const pathParamVars = [...path.matchAll(/\{(\w+)\}/g)]
+                    .map(([, paramName]) => ({ name: paramName, values: '', type: 'constant', multiline: false }));
+
+                const headers = {};
+                let body = null;
+                const contentTypes = isV3
+                    ? Object.keys(operation.requestBody?.content || {})
+                    : (operation.consumes || spec.consumes || []);
+                const contentType = contentTypes[0];
+                if (contentType) {
+                    headers['Content-Type'] = contentType;
+                    if (/^application\/(\w+\+)?json$/.test(contentType)) {
+                        const bodySchema = isV3
+                            ? operation.requestBody?.content?.[contentType]?.schema
+                            : (operation.parameters || []).find(p => p.in === 'body')?.schema;
+                        body = JSON.stringify(buildExampleBodyFromSchema(bodySchema));
+                    }
+                }
+
+                const parts = ['curl'];
+                const upperMethod = method.toUpperCase();
+                // Always explicit, including GET: curl doesn't require -X GET
+                // (it's the default), but omitting it made every GET operation
+                // look like it had no method set when reviewing the imported curl text.
+                parts.push(`-X ${upperMethod}`);
+                parts.push(`'${url}'`);
+                for (const [k, v] of Object.entries(headers)) parts.push(`-H '${k}: ${v}'`);
+                if (body) parts.push(`-d '${body}'`);
+                const curlInput = parts.join(' \\\n  ');
+
+                candidates.push({
+                    name,
+                    method: upperMethod,
+                    url,
+                    profileData: { ...defaultValues, projectName: name, curlInput, variables: pathParamVars },
+                });
+            }
+        }
+        return candidates;
+    }
+
+    function renderImportReviewList(candidates) {
+        const list     = document.getElementById('importReviewList');
+        const profiles = getAllProfiles();
+        document.getElementById('importSelectAllBtn').textContent = 'Select All';
+
+        const rows = candidates.map((c, idx) => {
+            const willOverwrite = !!profiles[c.name];
+            return `
+                <tr onmouseover="this.style.background='#252d3d'" onmouseout="this.style.background=''">
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle;">
+                        <input type="checkbox" class="import-candidate-cb" data-idx="${idx}" checked
+                               style="width:auto; margin:0; accent-color:#3b82f6;" />
+                    </td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle;">
+                        <input type="text" class="import-name-input" data-idx="${idx}" value="${escapeHtml(c.name)}"
+                               oninput="handleImportNameEdit(${idx}, this.value)"
+                               style="width:100%; box-sizing:border-box; margin:0; padding:0.2rem 0.4rem; font-size:0.85rem;
+                                      background:#0f172a; border:1px solid #334155; border-radius:4px; color:#e2e8f0;" />
+                        <span class="import-overwrite-badge" data-idx="${idx}"
+                              style="color:#f59e0b; font-size:0.75rem; display:${willOverwrite ? 'inline' : 'none'};">will overwrite existing</span>
+                    </td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle; font-size:0.8rem; color:#94a3b8; white-space:nowrap;">${escapeHtml(c.method || 'GET')}</td>
+                    <td style="padding:0.3rem 0.4rem; vertical-align:middle; font-size:0.8rem; color:#94a3b8; word-break:break-all;">${escapeHtml(c.url || '')}</td>
+                </tr>`;
+        }).join('');
+
+        list.innerHTML = `
+            <table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:0.85rem; color:#e2e8f0; font-family:system-ui;">
+                <colgroup>
+                    <col style="width:28px;">
+                    <col style="width:20%;">
+                    <col style="width:70px;">
+                    <col>
+                </colgroup>
+                <thead>
+                    <tr style="text-align:left; color:#64748b; font-size:0.75rem;">
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;"></th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">Name</th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">Method</th>
+                        <th style="padding:0.2rem 0.4rem; font-weight:normal;">URL</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+
+        updateImportSummary();
+    }
+
+    function updateImportSummary() {
+        const profiles = getAllProfiles();
+        const overwriteCount = _importCandidates.filter(c => !!profiles[c.name]).length;
+        const summary = document.getElementById('importSummaryLabel');
+        summary.textContent = `${_importCandidates.length} found` +
+            (overwriteCount > 0 ? `, ${overwriteCount} will overwrite existing projects` : '');
+    }
+
+    function handleImportNameEdit(idx, value) {
+        _importCandidates[idx].name = value;
+        const profiles = getAllProfiles();
+        const badge = document.querySelector(`.import-overwrite-badge[data-idx="${idx}"]`);
+        if (badge) badge.style.display = profiles[value] ? 'inline' : 'none';
+        updateImportSummary();
+    }
+
+    function toggleImportSelectAll() {
+        const allChecked = [...document.querySelectorAll('.import-candidate-cb')].every(cb => cb.checked);
+        document.querySelectorAll('.import-candidate-cb').forEach(cb => cb.checked = !allChecked);
+    }
+
+    function applyImportSelection() {
+        const selectedIdx = [...document.querySelectorAll('.import-candidate-cb:checked')]
+            .map(cb => parseInt(cb.dataset.idx, 10));
+        if (selectedIdx.length === 0) { alert('Select at least one project to import.'); return; }
+
+        const names = selectedIdx.map(idx => _importCandidates[idx].name.trim());
+        if (names.some(n => !n)) { alert('Project name cannot be blank.'); return; }
+        const dupes = names.filter((n, i) => names.indexOf(n) !== i);
+        if (dupes.length > 0) { alert(`Duplicate project name: "${dupes[0]}". Each imported project needs a unique name.`); return; }
+
+        const profiles = getAllProfiles();
+        selectedIdx.forEach((idx, i) => {
+            const candidate = _importCandidates[idx];
+            profiles[names[i]] = { ...candidate.profileData, projectName: names[i] };
+        });
+
+        saveAllProfiles(profiles);
+        refreshProfileDropdown();
+        // Refresh export panel if open
+        if (document.getElementById('exportPanel').style.display !== 'none') renderExportPanel();
+        closeImportPanel();
+        alert(`Imported ${selectedIdx.length} project${selectedIdx.length !== 1 ? 's' : ''}.`);
     }
 
     function getVariableDefinitions() {
