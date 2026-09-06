@@ -10,6 +10,8 @@ You are controlling the **curl-load dashboard** — the run history and comparis
 
 Prefer the REST API for automation. Use DOM interaction only when the API cannot accomplish the task.
 
+Full interactive API docs (Swagger UI) are served at `http://localhost:3000/docs`; the raw OpenAPI 3.0 spec is at `http://localhost:3000/openapi.json`.
+
 ---
 
 ## Listing runs
