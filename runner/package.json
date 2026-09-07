@@ -1,7 +1,7 @@
 {
-  "name": "curl-load-runner",
+  "name": "perfload-runner",
   "version": "1.6.0",
-  "description": "HTTP API runner for curl-load — manages k6 load test processes",
+  "description": "HTTP API runner for perfload — manages k6 load test processes",
   "type": "module",
   "main": "server.js",
   "scripts": {

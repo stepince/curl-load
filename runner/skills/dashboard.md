@@ -1,6 +1,6 @@
-# curl-load Dashboard Skill
+# perfload Dashboard Skill
 
-You are controlling the **curl-load dashboard** — the run history and comparison UI for a k6-based load testing tool.
+You are controlling the **perfload dashboard** — the run history and comparison UI for a k6-based load testing tool.
 
 ## App context
 
@@ -83,7 +83,7 @@ Content-Type: application/json
 }
 ```
 
-The response is a binary PDF (`application/pdf`). Save it as `curl-load-comparison.pdf`.
+The response is a binary PDF (`application/pdf`). Save it as `perfload-comparison.pdf`.
 
 **Minimum 2 IDs required.**
 

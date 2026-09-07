@@ -1,6 +1,6 @@
 // Copyright (c) 2026 Stephen Ince
 // Licensed under custom license. See LICENSE file.
-// curl-load web UI — vanilla JS, no frameworks
+// perfload web UI — vanilla JS, no frameworks
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -89,7 +89,7 @@ app.use('/skills', express.static(join(__dirname, 'skills')));
 
 // Machine-readable app metadata for Claude-in-Chrome
 app.get('/app-info', (_req, res) => res.json({
-  name: 'curl-load',
+  name: 'perfload',
   skills: {
     workbench: '/skills/workbench.md',
     dashboard: '/skills/dashboard.md',
@@ -118,7 +118,7 @@ app.use((req, res, next) => {
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 curl-load is running`);
+  console.log(`🚀 perfload is running`);
   console.log(`👉 Workbench: http://localhost:${PORT}/load-tester.html`);
   console.log(`👉 Dashboard: http://localhost:${PORT}/`);
 });

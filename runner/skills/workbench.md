@@ -1,6 +1,6 @@
-# curl-load Workbench Skill
+# perfload Workbench Skill
 
-You are controlling the **curl-load workbench** — a k6-based load testing tool with a REST API and a browser UI.
+You are controlling the **perfload workbench** — a k6-based load testing tool with a REST API and a browser UI.
 
 ## App context
 
@@ -101,10 +101,10 @@ Calling `createProjectFromFields()` resets the form, builds a curl command via `
 
 The profile-bar toolbar has three floating dropdown panels — Export, Import, and Delete — that share one review-table pattern: a checkbox per row, "Select All", and an action button. Opening any one of them (or the "New" panel, or the curl-command "Edit" panel) closes the others; clicking outside a panel closes it too.
 
-**Export** (`#exportToggleBtn` → `toggleExportPanel()`): lists every saved profile by name as a checkbox. `exportSelectedProjects()` downloads the checked ones as a single JSON file (`{ version: 1, projects: { <name>: <profileData>, ... } }`) — this is curl-load's own export format.
+**Export** (`#exportToggleBtn` → `toggleExportPanel()`): lists every saved profile by name as a checkbox. `exportSelectedProjects()` downloads the checked ones as a single JSON file (`{ version: 1, projects: { <name>: <profileData>, ... } }`) — this is perfload's own export format.
 
 **Import** (`#importToggleBtn` → `toggleImportPanel()`): a 2-step flow.
-1. **Step 1** — pick a file via `#importFileInput` (`.json`, `.yaml`, `.yml`). `detectAndParseImportFile()` accepts two formats: curl-load's own export JSON (`{ projects: {...} }`), or an OpenAPI spec (v2 "swagger" or v3 "openapi", JSON or YAML — YAML parsed via the `jsyaml` global). An OpenAPI spec is converted via `convertOpenApiToProjects()`: one candidate project per operation, path params (`{id}`) become `${id}` curl-load variables (pre-registered in the project's Variables list), the method is always written explicitly (`-X GET`/`-X POST`/etc. — never omitted, even for GET), and a JSON request body is built from the schema's `example`/`default` values when present (`buildExampleBodyFromSchema()`), falling back to type-appropriate empty values.
+1. **Step 1** — pick a file via `#importFileInput` (`.json`, `.yaml`, `.yml`). `detectAndParseImportFile()` accepts two formats: perfload's own export JSON (`{ projects: {...} }`), or an OpenAPI spec (v2 "swagger" or v3 "openapi", JSON or YAML — YAML parsed via the `jsyaml` global). An OpenAPI spec is converted via `convertOpenApiToProjects()`: one candidate project per operation, path params (`{id}`) become `${id}` perfload variables (pre-registered in the project's Variables list), the method is always written explicitly (`-X GET`/`-X POST`/etc. — never omitted, even for GET), and a JSON request body is built from the schema's `example`/`default` values when present (`buildExampleBodyFromSchema()`), falling back to type-appropriate empty values.
 2. **Step 2** — a review table (checkbox / editable name / method / url) for every candidate found, all checked by default. The **name is editable inline** — typing a new name updates that row's target project name live, including the "will overwrite existing" warning if it now collides with a saved profile. `applyImportSelection()` writes the checked rows into profiles (overwriting any name collision) with no further confirmation — the review table itself is the confirmation step, unlike Delete below.
 
 **Delete** (`#deleteToggleBtn` → `toggleDeletePanel()`): same review-table shape (checkbox / name / method / url), but listing every saved profile rather than file candidates. `deleteSelectedProjects()` requires a native `confirm()` naming exactly which projects will be removed before applying — unlike Import, this is destructive with no undo. If driving this via automation, note the `confirm()` will block unless the environment can answer it.

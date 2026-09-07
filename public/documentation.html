@@ -10,9 +10,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>curl-load Documentation</title>
-  <meta name="description" content="Documentation for curl-load — turn an HTTP request into a k6 load test, run it, and read the results. Covers requests, variables, execution modes, CI/CD, and AI skills.">
-  <meta property="og:title" content="curl-load Documentation">
+  <title>perfload Documentation</title>
+  <meta name="description" content="Documentation for perfload — turn an HTTP request into a k6 load test, run it, and read the results. Covers requests, variables, execution modes, CI/CD, and AI skills.">
+  <meta property="og:title" content="perfload Documentation">
   <meta property="og:description" content="Turn an HTTP request into a k6 load test, run it, and read the results.">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -171,9 +171,9 @@
 <div class="container">
 
 <h1 style="display:flex; align-items:center;">
-  <a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;"
-     style="color:inherit; text-decoration:none; white-space:nowrap;">curl-load</a>&nbsp;Documentation
-  <a href="load-tester.html" target="curl-load-workbench"
+  <a href="#" onclick="window.open('https://perfload.com','perfload-site'); return false;"
+     style="color:inherit; text-decoration:none; white-space:nowrap;">perfload</a>&nbsp;Documentation
+  <a href="load-tester.html" target="perfload-workbench"
      style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem;"
      onmouseover="this.style.textDecoration='underline'"
      onmouseout="this.style.textDecoration='none'">workbench →</a>
@@ -181,7 +181,7 @@
 
 <div class="card">
   <h2>Installation &amp; Setup</h2>
-  <p>No installation required. curl-load is available as a pre-built Docker image — just run it.</p>
+  <p>No installation required. perfload is available as a pre-built Docker image — just run it.</p>
 
   <hr class="divider">
 
@@ -196,15 +196,15 @@
   <div class="code-block-header">
     <button class="copy-btn" onclick="copyCode(this)" title="Copy to clipboard" aria-label="Copy docker command to clipboard"></button>
   </div>
-  <pre><code>docker run -d --name curl-load \
+  <pre><code>docker run -d --name perfload \
   -p 3000:3000 \
-  -v curl-load-runs:/app/runs \
-  curlload/curl-load-runner:latest</code></pre>
+  -v perfload-runs:/app/runs \
+  perfload/perfload-runner:latest</code></pre>
 
   <ul>
     <li><code>-d</code> — run in the background</li>
     <li><code>-p 3000:3000</code> — dashboard, API &amp; k6 live dashboard (all on one port)</li>
-    <li><code>-v curl-load-runs:/app/runs</code> — persist run history across restarts</li>
+    <li><code>-v perfload-runs:/app/runs</code> — persist run history across restarts</li>
   </ul>
 
   <p class="tip">To pin a specific release instead, replace <code>latest</code> with a version tag, e.g. <code>1.6.0</code>.</p>
@@ -223,15 +223,15 @@
 
   <h3>Managing the container</h3>
   <pre><code># Stop
-docker stop curl-load
+docker stop perfload
 
 # Start again
-docker start curl-load
+docker start perfload
 
 # View logs
-docker logs curl-load</code></pre>
+docker logs perfload</code></pre>
 
-  <p class="tip">Tip: Run history is stored in the <code>curl-load-runs</code> Docker volume and is preserved when you stop, restart, or upgrade the container.</p>
+  <p class="tip">Tip: Run history is stored in the <code>perfload-runs</code> Docker volume and is preserved when you stop, restart, or upgrade the container.</p>
 </div>
 
 <div class="card">
@@ -378,7 +378,7 @@ clothing</code></pre>
 
   <h3>Execution Modes</h3>
 
-  <p>curl-load supports two ways to run a request, both executed by the curl-load runner (Docker / k6) rather than the browser:</p>
+  <p>perfload supports two ways to run a request, both executed by the perfload runner (Docker / k6) rather than the browser:</p>
 
   <ul>
     <li>
@@ -501,7 +501,7 @@ CONFIG=$(curl -s $RUNNER/runs/$BASELINE_RUN_ID | jq '.config | .users = 100 | .d
 
 <div class="card">
   <h2>AI Skills</h2>
-  <p>Skills are markdown files that teach any AI assistant how to drive curl-load via its REST API. Instead of building LLM analysis into the app, skills keep the tool lightweight and model-agnostic — the AI reads the skill, then calls the API directly.</p>
+  <p>Skills are markdown files that teach any AI assistant how to drive perfload via its REST API. Instead of building LLM analysis into the app, skills keep the tool lightweight and model-agnostic — the AI reads the skill, then calls the API directly.</p>
 
   <hr class="divider">
 
@@ -547,7 +547,7 @@ GET /skills/dashboard.md</code></pre>
 
 </div>
 <footer style="margin-top:2rem; padding:1rem 2rem; text-align:right; font-size:0.75rem; color:#334155;">
-  curl-load v1.6.0
+  perfload v1.6.0
 </footer>
 <script>
   function copyCode(btn) {

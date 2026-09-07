@@ -4,8 +4,8 @@ import { Command } from 'commander';
 const program = new Command();
 
 program
-  .name('curl-load')
-  .description('Run k6 load tests via the curl-load runner API')
+  .name('perfload')
+  .description('Run k6 load tests via the perfload runner API')
   .version('0.1.0');
 
 program

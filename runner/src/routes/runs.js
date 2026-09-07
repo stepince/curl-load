@@ -28,7 +28,7 @@ runsRouter.post('/compare/report.pdf', async (req, res) => {
   try {
     const pdfBytes = await buildComparisonPdf(runsData);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="curl-load-comparison.pdf"');
+    res.setHeader('Content-Disposition', 'attachment; filename="perfload-comparison.pdf"');
     res.end(pdfBytes);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -227,7 +227,7 @@ runsRouter.get('/:id/report.pdf', async (req, res) => {
   try {
     const pdfBytes = await buildRunPdf(run, summaryData);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="curl-load-${run.id}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="perfload-${run.id}.pdf"`);
     res.end(pdfBytes);
   } catch (err) {
     console.error(`[run ${run.id}] PDF generation failed:`, err.message);

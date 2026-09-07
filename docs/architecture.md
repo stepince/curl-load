@@ -1,9 +1,9 @@
-# curl-load — Architecture
+# perfload — Architecture
 
 ## Components
 
 ```
-curl-load/
+perfload/
 ├── runner/           Node.js + Express API — manages k6 processes
 │   ├── server.js
 │   ├── src/

@@ -1,10 +1,10 @@
 {
-  "name": "curl-load",
+  "name": "perfload",
   "version": "0.1.0",
-  "description": "CLI tool for curl-load — submit load tests from the command line",
+  "description": "CLI tool for perfload — submit load tests from the command line",
   "type": "module",
   "bin": {
-    "curl-load": "./src/cli.js"
+    "perfload": "./src/cli.js"
   },
   "scripts": {
     "start": "node src/cli.js"

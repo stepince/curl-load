@@ -1,13 +1,13 @@
 // Copyright (c) 2026 Stephen Ince
 // Licensed under custom license. See LICENSE file.
-// curl-load web UI — vanilla JS, no frameworks
+// perfload web UI — vanilla JS, no frameworks
 const API = '';
 
 function toggleCollapsible(label) {
   label.classList.toggle('open');
 }
 
-const _workbenchChannel = new BroadcastChannel('curl-load-workbench');
+const _workbenchChannel = new BroadcastChannel('perfload-workbench');
 window.addEventListener('beforeunload', () => _workbenchChannel.close());
 
 function showToast(msg, isError = false) {
@@ -22,7 +22,7 @@ function showToast(msg, isError = false) {
 }
 
 function openWorkbench() {
-  window.open('/load-tester.html', 'curl-load-workbench');
+  window.open('/load-tester.html', 'perfload-workbench');
 }
 
 function openWorkbenchWithProject() {
@@ -44,7 +44,7 @@ function openWorkbenchWithProject() {
   };
 
   // Ensure the workbench window exists; if not open it now
-  window.open('/load-tester.html', 'curl-load-workbench');
+  window.open('/load-tester.html', 'perfload-workbench');
 
   let acked = false;
   const onAck = e => {
@@ -825,7 +825,7 @@ function showLiveDashboardLink(runId) {
 }
 
 function openK6Dashboard(url) {
-  k6DashWin = window.open(url, 'curl-load-k6-dashboard');
+  k6DashWin = window.open(url, 'perfload-k6-dashboard');
 }
 
 
@@ -905,7 +905,7 @@ function renderOutput() {
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `curl-load-${lastFinishedData.runId}.pdf`;
+          a.download = `perfload-${lastFinishedData.runId}.pdf`;
           a.click();
           URL.revokeObjectURL(url);
         })
@@ -996,7 +996,7 @@ async function downloadComparisonPdf() {
     }
     const blob = await resp.blob();
     const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href: url, download: 'curl-load-comparison.pdf' });
+    const a    = Object.assign(document.createElement('a'), { href: url, download: 'perfload-comparison.pdf' });
     document.body.appendChild(a);
     a.click();
     a.remove();

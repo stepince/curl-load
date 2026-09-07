@@ -10,7 +10,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>curl-load workbench</title>
+    <title>perfload workbench</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -234,14 +234,14 @@
          YAML is a worse failure mode here than a chart style shift. -->
     <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.1/dist/js-yaml.min.js"></script>
 </head>
-<body onload="window.name='curl-load-workbench'">
+<body onload="window.name='perfload-workbench'">
 <h1 style="display:flex; align-items:center;">
-    <a href="#" onclick="window.open('https://curl-load.com','curl-load-site'); return false;" style="color:inherit; text-decoration:none; white-space:nowrap;">curl-load</a><span style="margin-left:0.35rem;">workbench</span>
-    <a href="#" onclick="window.open('/','curl-load-dashboard'); return false;"
+    <a href="#" onclick="window.open('https://perfload.com','perfload-site'); return false;" style="color:inherit; text-decoration:none; white-space:nowrap;">perfload</a><span style="margin-left:0.35rem;">workbench</span>
+    <a href="#" onclick="window.open('/','perfload-dashboard'); return false;"
        style="font-size:0.75rem; font-weight:400; color:#7dd3fc; text-decoration:none; margin-left:1rem; vertical-align:middle;">dashboard →</a>
 
     <!-- Documentation + Contact + Bug Report (RIGHT SIDE) -->
-    <a href="documentation.html" target="curl-load-docs" title="Documentation"
+    <a href="documentation.html" target="perfload-docs" title="Documentation"
        style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:auto; color:#94a3b8; text-decoration:none; font-size:0.85rem; font-weight:500;"
        onmouseover="this.style.opacity=0.8"
        onmouseout="this.style.opacity=1">
@@ -254,7 +254,7 @@
         Documentation
     </a>
 
-    <a href="mailto:support@curl-load.com"
+    <a href="mailto:support@perfload.com"
        target="_blank"
        title="Contact support"
        style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;
@@ -270,7 +270,7 @@
         Contact
     </a>
 
-    <a href="https://github.com/support-curl-load/curl-load-support/issues/new/choose"
+    <a href="https://github.com/support-perfload/perfload-support/issues/new/choose"
        target="_blank"
        title="Report a bug or request a feature"
        style="display:inline-flex; align-items:center; gap:0.35rem; margin-left:1rem;
@@ -384,7 +384,7 @@
         <!-- Step 1: pick a file -->
         <div id="importStep1" style="display:flex; flex-direction:column; gap:0.5rem;">
             <div style="font-size:0.82rem; color:#94a3b8;">
-                Select a curl-load export (.json) or an OpenAPI spec (.json/.yaml/.yml).
+                Select a perfload export (.json) or an OpenAPI spec (.json/.yaml/.yml).
             </div>
             <input type="file" id="importFileInput" accept=".json,.yaml,.yml"
                    onchange="handleImportFileSelected(this.files[0])" style="width:100%; margin:0;" />
@@ -605,7 +605,7 @@
            style="display:none; font-size:0.78rem; color:#7dd3fc; text-decoration:none; margin-left:auto; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
            onmouseout="this.style.textDecoration='none'"
-           onclick="window.open(this.dataset.url,'curl-load-dashboard'); return false;">dashboard ↗</a>
+           onclick="window.open(this.dataset.url,'perfload-dashboard'); return false;">dashboard ↗</a>
         <a id="certDownloadLink" href="#" download="client.crt"
            style="display:none; font-size:0.78rem; color:#94a3b8; text-decoration:none; cursor:pointer;"
            onmouseover="this.style.textDecoration='underline'"
@@ -654,7 +654,7 @@
             <div>
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.3rem;">
                     <span style="font-size:0.85rem; color:#cbd5e1;">Workbench skill</span>
-                    <a href="/skills/workbench.md" download="curl-load-workbench.md"
+                    <a href="/skills/workbench.md" download="perfload-workbench.md"
                        style="font-size:0.78rem; color:#7dd3fc; text-decoration:none;"
                        onmouseover="this.style.textDecoration='underline'"
                        onmouseout="this.style.textDecoration='none'">Download ↓</a>
@@ -671,7 +671,7 @@
             <div>
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.3rem;">
                     <span style="font-size:0.85rem; color:#cbd5e1;">Dashboard skill</span>
-                    <a href="/skills/dashboard.md" download="curl-load-dashboard.md"
+                    <a href="/skills/dashboard.md" download="perfload-dashboard.md"
                        style="font-size:0.78rem; color:#7dd3fc; text-decoration:none;"
                        onmouseover="this.style.textDecoration='underline'"
                        onmouseout="this.style.textDecoration='none'">Download ↓</a>
@@ -777,7 +777,7 @@
         restoreActiveRun().then(async resumed => {
             if (resumed) return;
             try {
-                const lastTest = JSON.parse(localStorage.getItem('curl-load.lastTestRun'));
+                const lastTest = JSON.parse(localStorage.getItem('perfload.lastTestRun'));
                 if (lastTest?.runnerUrl && lastTest?.runId) {
                     const r = await fetch(`${lastTest.runnerUrl}/runs/${lastTest.runId}/status`);
                     if (r.ok) {
@@ -788,7 +788,7 @@
                 }
             } catch {}
             try {
-                const saved = JSON.parse(localStorage.getItem('curl-load.singleResult'));
+                const saved = JSON.parse(localStorage.getItem('perfload.singleResult'));
                 if (saved) {
                     document.getElementById('status').textContent = saved.statusText;
                     document.getElementById('status').style.color = saved.statusColor;
@@ -853,7 +853,7 @@
 
     });
 
-    const _workbenchChannel = new BroadcastChannel('curl-load-workbench');
+    const _workbenchChannel = new BroadcastChannel('perfload-workbench');
     _workbenchChannel.onmessage = e => {
         if (e.data?.type === 'workbench-prefill' && e.data.payload) {
             try {
@@ -876,7 +876,7 @@
     }
 
     function saveLastTestRun(runnerUrl, runId) {
-        try { localStorage.setItem('curl-load.lastTestRun', JSON.stringify({ runnerUrl, runId })); } catch {}
+        try { localStorage.setItem('perfload.lastTestRun', JSON.stringify({ runnerUrl, runId })); } catch {}
     }
 
     function openSettings() {
@@ -1096,8 +1096,8 @@
         document.getElementById('keyDownloadLink').style.display  = 'none';
         if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
         document.getElementById('latencyChartCard').style.display = 'none';
-        localStorage.removeItem('curl-load.singleResult');
-        localStorage.removeItem('curl-load.lastTestRun');
+        localStorage.removeItem('perfload.singleResult');
+        localStorage.removeItem('perfload.lastTestRun');
     }
 
     function setRunState(mode) {
@@ -1567,7 +1567,7 @@
             document.getElementById('results').textContent = displayBody;
 
             try {
-                localStorage.setItem('curl-load.singleResult', JSON.stringify({
+                localStorage.setItem('perfload.singleResult', JSON.stringify({
                     statusText: statusEl.textContent,
                     statusColor,
                     reportHTML,
@@ -2557,7 +2557,7 @@
             (typeof parsed.swagger === 'string' && parsed.swagger.startsWith('2'))) {
             return { kind: 'openapi', data: parsed };
         }
-        throw new Error('File is not a recognized curl-load export or OpenAPI spec.');
+        throw new Error('File is not a recognized perfload export or OpenAPI spec.');
     }
 
     // Builds a JSON request-body placeholder from a schema: uses each
@@ -2591,7 +2591,7 @@
     // per-import). A JSON request body is built from the schema's example/
     // default values (buildExampleBodyFromSchema) when present, else a
     // type-appropriate empty placeholder — no $ref or oneOf/allOf resolution.
-    // Path params ({id}) become curl-load's own ${id} variable syntax,
+    // Path params ({id}) become perfload's own ${id} variable syntax,
     // pre-registered in the resulting project's Variables list.
     function convertOpenApiToProjects(spec) {
         const isV3 = typeof spec.openapi === 'string';
@@ -2786,7 +2786,7 @@
     }
 </script>
 <footer style="margin-top:2rem; padding:1rem 2rem; text-align:right; font-size:0.75rem; color:#334155;">
-    curl-load v1.6.0
+    perfload v1.6.0
 </footer>
 </body>
 </html>

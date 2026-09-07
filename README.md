@@ -1,4 +1,4 @@
-# curl-load
+# perfload
 
 A developer tool that takes an HTTP request, converts it into a k6 load test, runs it, and exposes an API + UI to manage runs.
 
@@ -7,7 +7,7 @@ A developer tool that takes an HTTP request, converts it into a k6 load test, ru
 ## Project structure
 
 ```
-curl-load/
+perfload/
 ├── runner/     Node.js API — spawns k6, stores run state
 ├── web/        Dashboard UI (served by the runner)
 ├── public/     Workbench UI + documentation
@@ -153,10 +153,10 @@ created → running → finished
 ## Docker
 
 ```bash
-docker run -p 3000:3000 -v curl-load-runs:/app/runs curlload/curl-load-runner:latest
+docker run -p 3000:3000 -v perfload-runs:/app/runs perfload/perfload-runner:latest
 ```
 
-Only port 3000 is needed — the k6 live dashboard is proxied through it at `/runs/:id/dashboard/live/`. The `-v curl-load-runs:/app/runs` flag mounts a named volume so run history persists across image updates.
+Only port 3000 is needed — the k6 live dashboard is proxied through it at `/runs/:id/dashboard/live/`. The `-v perfload-runs:/app/runs` flag mounts a named volume so run history persists across image updates.
 
 ---
 
